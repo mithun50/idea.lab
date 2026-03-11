@@ -7,17 +7,17 @@
    ======================================== */
 
 :root {
-  --gradient-start: #0f0c29;
-  --gradient-mid: #302b63;
-  --gradient-end: #24243e;
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --accent: #7c3aed;
-  --accent-light: #a78bfa;
+  --gradient-start: #020617;
+  --gradient-mid: #0f172a;
+  --gradient-end: #1e1b4b;
+  --glass-bg: rgba(30, 41, 59, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --accent: #8b5cf6;
+  --accent-light: #c4b5fd;
   --success: #10b981;
   --warning: #f59e0b;
-  --danger: #ef4444;
-  --text-primary: #f1f5f9;
+  --danger: #f43f5e;
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
 }
 
@@ -58,10 +58,11 @@ h1, h2, h3, h4, h5, h6, .brand-font {
 
 /* Gradient Text */
 .gradient-text {
-  background: linear-gradient(135deg, #7c3aed, #06b6d4, #a78bfa);
+  background: linear-gradient(135deg, #a78bfa, #22d3ee, #818cf8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-weight: 800;
 }
 
 /* Animated gradient border */

@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { db, auth } from "@/lib/firebase";
-import { collection, getDocs, doc, updateDoc, query, orderBy } from "firebase/firestore";
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
+import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch } from "firebase/firestore";
 import { generateTeams, StudentPair } from "@/lib/matchingAlgorithm";
 import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
-import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, Play } from "lucide-react";
+import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, Play, AlertTriangle, ShieldAlert, KeyRound, Eraser } from "lucide-react";
 
 interface Student {
     name: string;
@@ -35,6 +35,13 @@ export default function AdminPage() {
     const [dataLoading, setDataLoading] = useState(false);
     const [matchingInProgress, setMatchingInProgress] = useState(false);
     const [matchingResult, setMatchingResult] = useState<string | null>(null);
+
+    // Reset Database States
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetPassword, setResetPassword] = useState("");
+    const [resetPhrase, setResetPhrase] = useState("");
+    const [resetLoading, setResetLoading] = useState(false);
+    const [resetError, setResetError] = useState("");
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -91,6 +98,51 @@ export default function AdminPage() {
     const handleLogout = async () => {
         await signOut(auth);
         setStudents([]);
+    };
+
+    const handleResetDatabase = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email) return;
+        if (resetPhrase !== "reset database") {
+            setResetError("Please type 'reset database' exactly.");
+            return;
+        }
+
+        setResetLoading(true);
+        setResetError("");
+
+        try {
+            // 1. Re-authenticate
+            const credential = EmailAuthProvider.credential(user.email, resetPassword);
+            await reauthenticateWithCredential(user, credential);
+
+            // 2. Perform deletion in batches
+            const q = query(collection(db, "registrations"));
+            const snapshot = await getDocs(q);
+            
+            if (snapshot.empty) {
+                alert("Database is already empty.");
+                setShowResetModal(false);
+                return;
+            }
+
+            const batch = writeBatch(db);
+            snapshot.forEach((docSnap) => {
+                batch.delete(docSnap.ref);
+            });
+            await batch.commit();
+
+            alert("✅ Database has been successfully reset.");
+            setShowResetModal(false);
+            setResetPassword("");
+            setResetPhrase("");
+            await fetchStudents();
+        } catch (error: any) {
+            console.error("Reset error:", error);
+            setResetError(error.message || "Failed to reset database. Check your password.");
+        } finally {
+            setResetLoading(false);
+        }
     };
 
     const runMatching = async () => {
@@ -389,15 +441,32 @@ export default function AdminPage() {
                         {activeTab === "settings" && (
                              <div className="fade-in-up">
                                 <h1 className="text-3xl font-bold mb-2 brand-font">Lab Settings</h1>
-                                <p className="text-slate-400 mb-6">Configure event properties.</p>
-                                <div className="glass-card p-8 text-center max-w-lg mx-auto">
-                                    <Settings className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                                    <h3 className="font-bold text-xl mb-2">Platform Configurations</h3>
-                                    <p className="text-slate-400 text-sm mb-6">
-                                        Settings to toggle registration open/close, modify section mappings, 
-                                        and change event dates will go here.
-                                    </p>
-                                    <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">Edit Configurations (Coming soon)</button>
+                                <p className="text-slate-400 mb-8">Configure event properties and management tasks.</p>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="glass-card p-6 border-t-2 border-transparent">
+                                        <Settings className="w-8 h-8 text-slate-400 mb-4" />
+                                        <h3 className="font-bold text-lg mb-2">Platform Configurations</h3>
+                                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                                            Toggle registration open/close, modify section mappings, 
+                                            and change event dates.
+                                        </p>
+                                        <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">Edit Configurations (Soon)</button>
+                                    </div>
+
+                                    <div className="glass-card p-6 border-t-2 border-red-500/50 bg-red-500/5">
+                                        <ShieldAlert className="w-8 h-8 text-red-400 mb-4" />
+                                        <h3 className="font-bold text-lg mb-2 text-red-200">Danger Zone</h3>
+                                        <p className="text-red-400/70 text-sm mb-6 leading-relaxed">
+                                            Erase all student registrations and team data. This action is irreversible.
+                                        </p>
+                                        <button 
+                                            onClick={() => setShowResetModal(true)}
+                                            className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center gap-2"
+                                        >
+                                            <Eraser className="w-5 h-5" /> Reset All Database Data
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -405,6 +474,76 @@ export default function AdminPage() {
                     </div>
                 )}
             </div>
+
+            {/* Reset Database Modal */}
+            {showResetModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
+                    <div className="glass-card max-w-md w-full p-8 border-red-500/30 shadow-2xl shadow-red-500/10">
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-white mb-2">Critical Action</h2>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                                You are about to <span className="text-red-400 font-bold">permanently delete</span> all registration data. This cannot be undone.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleResetDatabase} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                                    <KeyRound className="w-4 h-4" /> Confirm your Password
+                                </label>
+                                <input 
+                                    type="password" 
+                                    value={resetPassword} 
+                                    onChange={(e) => setResetPassword(e.target.value)}
+                                    placeholder="Enter admin password"
+                                    className="input-field"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Type <span className="text-white font-mono font-bold italic">reset database</span> to confirm
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={resetPhrase} 
+                                    onChange={(e) => setResetPhrase(e.target.value)}
+                                    placeholder="reset database"
+                                    className="input-field"
+                                    required
+                                />
+                            </div>
+
+                            {resetError && (
+                                <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                                    {resetError}
+                                </p>
+                            )}
+
+                            <div className="flex gap-4">
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setShowResetModal(false); setResetError(""); setResetPassword(""); setResetPhrase(""); }}
+                                    className="flex-1 btn-secondary"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    disabled={resetLoading || resetPhrase !== "reset database" || !resetPassword}
+                                    className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {resetLoading ? <div className="spinner" /> : "Delete Data"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

@@ -70,6 +70,16 @@ export default function HomePage() {
             left: "50%",
           }}
         />
+        <div
+          className="absolute rounded-full blur-3xl opacity-5"
+          style={{
+            width: 600,
+            height: 600,
+            background: "radial-gradient(circle, #7c3aed, transparent)",
+            top: "20%",
+            left: "-10%",
+          }}
+        />
       </div>
 
       {/* Navigation */}

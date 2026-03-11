@@ -149,13 +149,13 @@ export default function RegistrationForm() {
                         
                         <div className="grid grid-cols-2 gap-3 mt-4">
                             <button type="button" onClick={() => {
-                                const text = `Hi, I've registered us for Idea Lab! Join my team using this code: ${submitResult.pairCode}\n\nLink: https://idealav-seven.vercel.app/join?code=${submitResult.pairCode}`;
+                                const text = `Hi, I've registered us for Idea Lab! Join my team using this code: ${submitResult.pairCode}\n\nLink: https://idealab-seven.vercel.app/join?code=${submitResult.pairCode}`;
                                 navigator.clipboard.writeText(text);
                                 alert("Copied to clipboard!");
                             }} className="btn-secondary w-full text-sm">
                                 <Copy className="w-4 h-4 flex-shrink-0" /> Copy Link
                             </button>
-                            <a href={`https://wa.me/?text=${encodeURIComponent(`Hi, I've registered us for Idea Lab! Join my team using this code: ${submitResult.pairCode}\n\nJoin Link: https://idealav-seven.vercel.app/join?code=${submitResult.pairCode}`)}`} 
+                            <a href={`https://wa.me/?text=${encodeURIComponent(`Hi, I've registered us for Idea Lab! Join my team using this code: ${submitResult.pairCode}\n\nJoin Link: https://idealab-seven.vercel.app/join?code=${submitResult.pairCode}`)}`} 
                                target="_blank" rel="noopener noreferrer" 
                                className="w-full text-sm py-2 px-4 rounded-lg font-semibold flex items-center justify-center gap-2"
                                style={{ backgroundColor: '#25D366', color: 'white' }}>
