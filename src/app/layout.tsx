@@ -2,26 +2,26 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Idea Lab — DBIT | Register & Form Teams",
-  description:
-    "Idea Lab at Don Bosco Institute of Technology — Register as a pair and get automatically matched into cross-branch teams of 6 for collaborative innovation.",
-  keywords: ["Idea Lab", "DBIT", "Don Bosco", "team formation", "hackathon"],
+  title: "Idea Lab — DBIT",
+  description: "Register. Pair Up. Innovate Together. Join 825+ first-year students in cross-branch teams of 6.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
