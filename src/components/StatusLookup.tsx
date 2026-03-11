@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { db } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { validateUSN } from "@/lib/usnValidator";
+import { Search, Trophy, Hourglass, Users, UserCircle } from "lucide-react";
 
 /**
  * StatusLookup Component
@@ -125,7 +125,7 @@ export default function StatusLookup() {
                     disabled={isLoading || !usn}
                     className="btn-primary shrink-0"
                 >
-                    {isLoading ? <div className="spinner" /> : "Look Up"}
+                    {isLoading ? <div className="spinner" /> : <><Search className="w-4 h-4"/> Look Up</>}
                 </button>
             </form>
 
@@ -140,9 +140,9 @@ export default function StatusLookup() {
             {studentData && (
                 <div className="space-y-6 fade-in-up">
                     {/* Registration Card */}
-                    <div className="glass-card p-6">
+                    <div className="glass-card p-6 border-l-4 border-l-violet-500">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-lg">Your Registration</h3>
+                            <h3 className="font-bold text-lg flex items-center gap-2"><UserCircle className="w-5 h-5 text-violet-400"/> Your Registration</h3>
                             <span
                                 className={`badge ${studentData.pairStatus === "confirmed"
                                         ? "badge-success"
@@ -189,10 +189,10 @@ export default function StatusLookup() {
 
                     {/* Team Status */}
                     {studentData.teamId ? (
-                        <div className="glass-card p-6">
+                        <div className="glass-card p-6 border-l-4 border-l-cyan-500 mt-6">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg">
-                                    🏆
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-cyan-500/20">
+                                    <Trophy className="w-6 h-6 text-white" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-lg">
@@ -231,8 +231,10 @@ export default function StatusLookup() {
                             </div>
                         </div>
                     ) : (
-                        <div className="glass-card p-8 text-center">
-                            <div className="text-4xl mb-4 float-animation">⏳</div>
+                        <div className="glass-card p-8 text-center mt-6">
+                            <div className="flex justify-center mb-4 float-animation">
+                                <Hourglass className="w-12 h-12 text-slate-400" />
+                            </div>
                             <h3 className="font-bold text-lg mb-2">
                                 Teams will be announced soon
                             </h3>

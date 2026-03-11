@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Lightbulb, Code, Users, Rocket, PencilLine, CheckCircle2, ChevronDown } from "lucide-react";
 
 /**
  * Landing Page — Idea Lab
@@ -74,10 +75,10 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="w-full px-4 py-4 flex justify-between items-center max-w-5xl mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg">
-            💡
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-violet-500/20">
+            <Lightbulb className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Idea Lab</span>
+          <span className="font-bold text-lg tracking-tight brand-font">Idea Lab</span>
         </div>
         <div className="flex gap-2">
           <Link href="/status" className="btn-secondary text-sm !py-2 !px-4">
@@ -113,35 +114,11 @@ export default function HomePage() {
               href="/register"
               className="btn-primary text-lg !py-4 !px-8 pulse-glow"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                />
-              </svg>
+              <PencilLine className="w-5 h-5" />
               Register Now
             </Link>
             <Link href="/status" className="btn-secondary text-lg !py-4 !px-8">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Users className="w-5 h-5" />
               Check Team Status
             </Link>
           </div>
@@ -150,17 +127,17 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
             {[
               {
-                icon: "📝",
+                icon: <PencilLine className="w-8 h-8 text-cyan-400" />,
                 title: "1. Register",
                 desc: "Enter your details and your partner's USN. Both must be from the same section.",
               },
               {
-                icon: "🤝",
+                icon: <CheckCircle2 className="w-8 h-8 text-emerald-400" />,
                 title: "2. Pair Confirmed",
                 desc: "When both partners register with each other's USN, the pair is automatically confirmed.",
               },
               {
-                icon: "🚀",
+                icon: <Rocket className="w-8 h-8 text-violet-400" />,
                 title: "3. Team Formed",
                 desc: "Admin matches confirmed pairs into cross-branch teams of 6 for maximum diversity.",
               },
@@ -193,20 +170,11 @@ export default function HomePage() {
                   className="w-full text-left p-4 flex justify-between items-center gap-4 hover:bg-white/5 transition-colors"
                 >
                   <span className="font-medium text-sm">{faq.q}</span>
-                  <svg
-                    className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${faqOpen === i ? "rotate-180" : ""
+                  <ChevronDown
+                    className={`shrink-0 transition-transform ${faqOpen === i ? "rotate-180 text-violet-400" : "text-slate-400"
                       }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    size={20}
+                  />
                 </button>
                 {faqOpen === i && (
                   <div className="px-4 pb-4 text-slate-400 text-sm leading-relaxed border-t border-white/5 pt-3">

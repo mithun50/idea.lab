@@ -1,104 +1,97 @@
 /**
  * USN Validation & Branch/Section Detection
  * 
- * USN Format: 1DB25 + BranchCode(2 letters) + Number(3 digits)
- * Example: 1DB25CS001
- * 
- * Branch codes:
- *   CS → CSE, IO → IOT, AI → AI&ML, AD → AI&DS,
- *   IS → ISE, EC → ECE, EE → EEE
- * 
- * Section is derived from the number range within the branch.
+ * Accurately determines Branch and Section based on DBIT 2025 exact ranges:
+ * CS -> CSE
+ * IC -> IOT
+ * CI -> AI&ML
+ * AD -> AI&DS
+ * IS -> ISE
+ * EC -> ECE
+ * EE -> EEE
  */
 
-import { validUSNs, BRANCH_SECTIONS } from "./validUSNs";
+import { validUSNs } from "./validUSNs";
 
-// Map 2-letter branch codes to full branch names
 export const BRANCH_MAP: Record<string, string> = {
     CS: "CSE",
-    IO: "IOT",
-    AI: "AI&ML",
+    IC: "IOT",
+    CI: "AI&ML",
     AD: "AI&DS",
     IS: "ISE",
     EC: "ECE",
     EE: "EEE",
 };
 
-// USN regex: 1DB25 + 2-letter branch code + 3-digit roll number
-const USN_REGEX = /^1DB25(CS|IO|AI|AD|IS|EC|EE)\d{3}$/;
-
 /**
- * Validates the format of a USN string.
- * Returns true if the USN matches the expected pattern.
+ * Validates the basic format of a USN string.
  */
 export function isValidUSNFormat(usn: string): boolean {
-    return USN_REGEX.test(usn.toUpperCase());
+    return /^1DB25(CS|IC|CI|AD|IS|EC|EE)\d{3}$/.test(usn.toUpperCase());
 }
 
 /**
- * Checks if a USN exists in the predefined valid student list.
+ * Checks if a USN exists in the predetermined list.
  */
 export function isUSNInValidList(usn: string): boolean {
     return validUSNs.has(usn.toUpperCase());
 }
 
 /**
- * Extracts the 2-letter branch code from a USN.
- * e.g., "1DB25CS001" → "CS"
- */
-export function getBranchCode(usn: string): string {
-    return usn.toUpperCase().substring(5, 7);
-}
-
-/**
  * Gets the full branch name from a USN.
- * e.g., "1DB25CS001" → "CSE"
  */
 export function getBranchName(usn: string): string {
-    const code = getBranchCode(usn);
+    const code = usn.toUpperCase().substring(5, 7);
     return BRANCH_MAP[code] || "Unknown";
 }
 
 /**
- * Determines the section from a USN based on the roll number.
- * Each branch has a predefined set of sections.
- * Students are distributed evenly across sections.
- * e.g., CSE with 120 students across A, B, C, D → 30 per section.
+ * Accurately determines the section using explicit rules rather than math.
  */
 export function getSection(usn: string): string {
     const upperUSN = usn.toUpperCase();
-    const branchCode = getBranchCode(upperUSN);
-    const rollNumber = parseInt(upperUSN.substring(7), 10);
+    const branchCode = upperUSN.substring(5, 7);
+    const rollStr = upperUSN.substring(7);
+    const rollNumber = parseInt(rollStr, 10);
 
-    const sections = BRANCH_SECTIONS[branchCode];
-    if (!sections || sections.length === 0) return "Unknown";
+    if (branchCode === "CS") {
+        if (rollNumber >= 1 && rollNumber <= 59) return "A";
+        if (rollNumber >= 60 && rollNumber <= 118) return "B";
+        if (rollNumber >= 119 && rollNumber <= 177) return "C";
+        if (rollNumber >= 178 && rollNumber <= 197) return "D";
+    }
 
-    // Each section holds a fixed number of students
-    // Roll numbers start at 1, so (rollNumber - 1) gives 0-based index
-    const studentsPerSection = Math.ceil(
-        getMaxRollForBranch(branchCode) / sections.length
-    );
-    const sectionIndex = Math.min(
-        Math.floor((rollNumber - 1) / studentsPerSection),
-        sections.length - 1
-    );
+    if (branchCode === "IC") {
+        if (rollNumber >= 1 && rollNumber <= 37) return "D";
+    }
 
-    return sections[sectionIndex];
-}
+    if (branchCode === "CI") {
+        if (rollNumber >= 1 && rollNumber <= 61) return "E";
+        if (rollNumber >= 62 && rollNumber <= 100) return "F";
+    }
 
-/**
- * Returns the maximum roll number for a given branch code.
- * This is derived from the valid USN list.
- */
-function getMaxRollForBranch(branchCode: string): number {
-    let max = 0;
-    validUSNs.forEach((usn) => {
-        if (usn.substring(5, 7) === branchCode) {
-            const roll = parseInt(usn.substring(7), 10);
-            if (roll > max) max = roll;
-        }
-    });
-    return max;
+    if (branchCode === "AD") {
+        if (rollNumber >= 1 && rollNumber <= 24) return "F";
+        if (rollNumber >= 25 && rollNumber <= 87) return "G";
+    }
+
+    if (branchCode === "IS") {
+        if (rollNumber >= 1 && rollNumber <= 66) return "I";
+        if ((rollNumber >= 67 && rollNumber <= 130) || rollNumber === 195) return "J";
+        if (rollNumber >= 131 && rollNumber <= 194) return "K";
+    }
+
+    if (branchCode === "EC") {
+        if (rollNumber >= 1 && rollNumber <= 53) return "L";
+        if ((rollNumber >= 54 && rollNumber <= 108) || rollNumber === 164) return "M";
+        if (rollNumber >= 109 && rollNumber <= 163) return "N";
+    }
+
+    if (branchCode === "EE") {
+        if (rollNumber >= 1 && rollNumber <= 45) return "P";
+    }
+
+    return "Unknown";
 }
 
 /**
@@ -118,7 +111,7 @@ export function validateUSN(usn: string): {
     }
 
     if (!isValidUSNFormat(upperUSN)) {
-        return { valid: false, error: "Invalid USN format. Expected: 1DB25XX###" };
+        return { valid: false, error: "Invalid USN format. e.g. 1DB25CS001" };
     }
 
     if (!isUSNInValidList(upperUSN)) {
@@ -134,11 +127,11 @@ export function validateUSN(usn: string): {
 
 /**
  * Checks if two USNs belong to the same section.
- * Required for pair confirmation — both partners must be from the same section.
  */
 export function areSameSection(usn1: string, usn2: string): boolean {
-    return (
-        getBranchCode(usn1) === getBranchCode(usn2) &&
-        getSection(usn1) === getSection(usn2)
-    );
+    const s1 = getSection(usn1);
+    const s2 = getSection(usn2);
+    // If either section is Unknown, they cannot be inherently verified as same section safely.
+    if (s1 === "Unknown" || s2 === "Unknown") return false;
+    return s1 === s2;
 }

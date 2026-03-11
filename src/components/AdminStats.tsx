@@ -17,6 +17,8 @@ interface StatsProps {
     teamsFormed: number;
 }
 
+import { Users, UserCheck, Hourglass, Trophy } from "lucide-react";
+
 export default function AdminStats({
     totalRegistrations,
     confirmedPairs,
@@ -27,28 +29,28 @@ export default function AdminStats({
         {
             label: "Total Registrations",
             value: totalRegistrations,
-            icon: "👤",
+            icon: <Users className="w-6 h-6" />,
             gradient: "from-violet-600 to-violet-400",
             bgGlow: "rgba(124, 58, 237, 0.15)",
         },
         {
             label: "Confirmed Pairs",
             value: confirmedPairs,
-            icon: "🤝",
+            icon: <UserCheck className="w-6 h-6" />,
             gradient: "from-emerald-600 to-emerald-400",
             bgGlow: "rgba(16, 185, 129, 0.15)",
         },
         {
             label: "Pending",
             value: pendingRegistrations,
-            icon: "⏳",
+            icon: <Hourglass className="w-6 h-6" />,
             gradient: "from-amber-600 to-amber-400",
             bgGlow: "rgba(245, 158, 11, 0.15)",
         },
         {
             label: "Teams Formed",
             value: teamsFormed,
-            icon: "🏆",
+            icon: <Trophy className="w-6 h-6" />,
             gradient: "from-cyan-600 to-cyan-400",
             bgGlow: "rgba(6, 182, 212, 0.15)",
         },
@@ -70,7 +72,7 @@ export default function AdminStats({
                         }}
                     />
                     <div className="relative">
-                        <div className="text-2xl mb-2">{stat.icon}</div>
+                        <div className="mb-2 text-white">{stat.icon}</div>
                         <p className="text-3xl font-black mb-1">{stat.value}</p>
                         <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
                             {stat.label}

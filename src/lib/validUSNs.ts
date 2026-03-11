@@ -1,52 +1,55 @@
 /**
  * Valid USN List for DBIT Idea Lab
  * 
- * Pre-generated list of ~825 valid USNs across 7 branches and 14 sections.
- * Replace this data with the actual student list from the college.
+ * Based on the specific 2025 DBIT allocation:
  * 
- * Branch distribution (approximate):
- *   CSE  → 120 students (sections A, B, C, D)
- *   IOT  → 120 students (sections E, F, G, I)
- *   AI&ML → 120 students (sections J, K, L, M)
- *   AI&DS → 120 students (sections N, P, A, B)  — sections reuse letters across branches
- *   ISE  → 120 students (sections C, D, E, F)
- *   ECE  → 120 students (sections G, I, J, K)
- *   EEE  → 105 students (sections L, M, N)
- * 
- * Total: ~825 students
+ * Section | Branch      | USN Range                  
+ * ---------------------------------------------------
+ * A       | CSE         | 1DB25CS001 – 1DB25CS059    
+ * B       | CSE         | 1DB25CS060 – 1DB25CS118    
+ * C       | CSE         | 1DB25CS119 – 1DB25CS177    
+ * D       | CSE + IOT   | 1DB25CS178 – 1DB25CS197 (CSE) & 1DB25IC001 – 1DB25IC037 (IOT)
+ * E       | AI & ML     | 1DB25CI001 – 1DB25CI061    
+ * F       | AI&ML+AI&DS | 1DB25CI062 – 1DB25CI100 (AI&ML) & 1DB25AD001 – 1DB25AD024 (AI&DS)
+ * G       | AI & DS     | 1DB25AD025 – 1DB25AD087    
+ * I       | ISE         | 1DB25IS001 – 1DB25IS066    
+ * J       | ISE         | 1DB25IS067 – 1DB25IS130 & 1DB25IS195 (late)
+ * K       | ISE         | 1DB25IS131 – 1DB25IS194    
+ * L       | ECE         | 1DB25EC001 – 1DB25EC053    
+ * M       | ECE         | 1DB25EC054 – 1DB25EC108 & 1DB25EC164 (late)
+ * N       | ECE         | 1DB25EC109 – 1DB25EC163    
+ * P       | EEE         | 1DB25EE001 – 1DB25EE045    
  */
 
-// Sections assigned to each branch code
-export const BRANCH_SECTIONS: Record<string, string[]> = {
-    CS: ["A", "B", "C", "D"],
-    IO: ["E", "F", "G", "I"],
-    AI: ["J", "K", "L", "M"],
-    AD: ["N", "P", "A", "B"],
-    IS: ["C", "D", "E", "F"],
-    EC: ["G", "I", "J", "K"],
-    EE: ["L", "M", "N"],
-};
-
-// Helper to generate USNs for a branch
-function generateBranchUSNs(branchCode: string, count: number): string[] {
+// Helper to generate USNs exactly in a range [start, end]
+function generateRange(branchCode: string, start: number, end: number): string[] {
     const usns: string[] = [];
-    for (let i = 1; i <= count; i++) {
+    for (let i = start; i <= end; i++) {
         const num = String(i).padStart(3, "0");
         usns.push(`1DB25${branchCode}${num}`);
     }
     return usns;
 }
 
-// Generate the full valid USN set
+// Generate the full valid USN set based on specific blocks
 function buildValidUSNSet(): Set<string> {
     const allUSNs: string[] = [
-        ...generateBranchUSNs("CS", 120),
-        ...generateBranchUSNs("IO", 120),
-        ...generateBranchUSNs("AI", 120),
-        ...generateBranchUSNs("AD", 120),
-        ...generateBranchUSNs("IS", 120),
-        ...generateBranchUSNs("EC", 120),
-        ...generateBranchUSNs("EE", 105),
+        // CSE
+        ...generateRange("CS", 1, 197),
+        // IOT (IC)
+        ...generateRange("IC", 1, 37),
+        // AI & ML (CI)
+        ...generateRange("CI", 1, 100),
+        // AI & DS (AD)
+        ...generateRange("AD", 1, 87),
+        // ISE
+        ...generateRange("IS", 1, 194),
+        "1DB25IS195", // Late addition in J
+        // ECE
+        ...generateRange("EC", 1, 163),
+        "1DB25EC164", // Late addition in M
+        // EEE
+        ...generateRange("EE", 1, 45),
     ];
     return new Set(allUSNs);
 }
