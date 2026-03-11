@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { db } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { validateUSN } from "@/lib/usnValidator";
 import { Search, Trophy, Hourglass, Users, UserCircle } from "lucide-react";
