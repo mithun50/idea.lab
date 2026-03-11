@@ -331,9 +331,90 @@ footer {
 }
 .footer-links a:hover { color: var(--ink); }
 
+/* ── UTILITIES ── */
+.brand-font { font-family: var(--bebas); }
+
+.glass-card {
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  padding: 32px;
+  position: relative;
+}
+
+.input-field {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--paper2);
+  border: 1.5px solid var(--line);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.input-field:focus {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+.input-field.error { border-color: var(--red); }
+.input-field.success { border-color: #10b981; }
+
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px 24px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--body); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  text-decoration: none; border: none; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary:hover { background: var(--red); color: #fff; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px;
+  background: transparent; color: var(--ink);
+  border: 1.5px solid var(--ink);
+  font-family: var(--body); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  text-decoration: none; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-secondary:hover { background: var(--ink); color: var(--paper); }
+
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1.5px solid var(--ink);
+}
+.badge-success { background: #10b981; color: #fff; border-color: #10b981; }
+.badge-warning { background: var(--muted); color: #fff; border-color: var(--muted); }
+.badge-danger { background: var(--red); color: #fff; border-color: var(--red); }
+
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(13,13,13,0.1);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── REVEAL ── */
 .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
 .reveal.in { opacity: 1; transform: translateY(0); }
+
+/* ── ANIMATIONS ── */
+.fade-in-up {
+  animation: fadeInUp 0.5s ease forwards;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {

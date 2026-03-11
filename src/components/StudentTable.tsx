@@ -102,11 +102,11 @@ export default function StudentTable({ students }: StudentTableProps) {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             {/* Search + Export */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                         type="text"
                         value={searchQuery}
@@ -115,68 +115,42 @@ export default function StudentTable({ students }: StudentTableProps) {
                         className="input-field !pl-11"
                     />
                 </div>
-                <button onClick={exportCSV} className="btn-secondary !bg-violet-600/20 hover:!bg-violet-600/40 text-violet-300 border-violet-500/30 shrink-0">
+                <button onClick={exportCSV} className="btn-secondary">
                     <Download className="w-4 h-4" />
                     Export CSV
                 </button>
             </div>
 
-            {/* Results count */}
-            <p className="text-sm text-slate-500">
-                Showing {paginatedStudents.length} of {filteredStudents.length} students
-            </p>
-
             {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-white/10">
-                <table className="w-full text-sm">
+            <div className="overflow-x-auto border-[1.5px] border-ink bg-paper">
+                <table className="w-full text-sm border-collapse">
                     <thead>
-                        <tr className="border-b border-white/10 bg-white/5">
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300">
-                                Name
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300">
-                                USN
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300 hidden md:table-cell">
-                                Branch
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300 hidden md:table-cell">
-                                Section
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300 hidden lg:table-cell">
-                                Partner
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300">
-                                Status
-                            </th>
-                            <th className="text-left py-3 px-4 font-semibold text-slate-300 hidden lg:table-cell">
-                                Team
-                            </th>
+                        <tr className="border-b-[1.5px] border-ink bg-paper2">
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Name</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">USN</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden md:table-cell">Branch</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden md:table-cell">Section</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden lg:table-cell">Partner</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Status</th>
+                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden lg:table-cell">Team</th>
                         </tr>
                     </thead>
                     <tbody>
                         {paginatedStudents.map((student, i) => (
                             <tr
                                 key={student.usn}
-                                className={`border-b border-white/5 hover:bg-white/5 transition-colors ${i % 2 === 0 ? "" : "bg-white/[0.02]"
-                                    }`}
+                                className={`border-b border-line hover:bg-paper2 transition-colors ${i % 2 === 0 ? "" : "bg-paper/50"}`}
                             >
-                                <td className="py-3 px-4 font-medium">{student.name}</td>
-                                <td className="py-3 px-4 font-mono text-xs text-cyan-400">
-                                    {student.usn}
-                                </td>
-                                <td className="py-3 px-4 hidden md:table-cell text-slate-400">
-                                    {student.branch}
-                                </td>
-                                <td className="py-3 px-4 hidden md:table-cell text-slate-400">
-                                    {student.section}
-                                </td>
-                                <td className="py-3 px-4 hidden lg:table-cell font-mono text-xs text-slate-400">
+                                <td className="py-4 px-4 font-semibold text-ink">{student.name}</td>
+                                <td className="py-4 px-4 font-mono text-xs text-ink">{student.usn}</td>
+                                <td className="py-4 px-4 hidden md:table-cell text-muted">{student.branch}</td>
+                                <td className="py-4 px-4 hidden md:table-cell text-muted">{student.section}</td>
+                                <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs text-muted">
                                     {student.partnerUSN}
                                 </td>
-                                <td className="py-3 px-4">
+                                <td className="py-4 px-4">
                                     <span
-                                        className={`badge text-xs ${student.pairStatus === "confirmed"
+                                        className={`badge ${student.pairStatus === "confirmed"
                                                 ? "badge-success"
                                                 : "badge-warning"
                                             }`}
@@ -184,7 +158,7 @@ export default function StudentTable({ students }: StudentTableProps) {
                                         {student.pairStatus}
                                     </span>
                                 </td>
-                                <td className="py-3 px-4 hidden lg:table-cell font-mono text-xs text-slate-400">
+                                <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs font-bold text-ink">
                                     {student.teamId || "—"}
                                 </td>
                             </tr>
@@ -193,28 +167,34 @@ export default function StudentTable({ students }: StudentTableProps) {
                 </table>
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2">
-                    <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="btn-secondary !py-2 !px-3 text-sm"
-                    >
-                        ← Prev
-                    </button>
-                    <span className="text-sm text-slate-400 px-4">
-                        Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="btn-secondary !py-2 !px-3 text-sm"
-                    >
-                        Next →
-                    </button>
-                </div>
-            )}
+            {/* Pagination + Results count */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted">
+                    Showing {paginatedStudents.length} of {filteredStudents.length} entries
+                </p>
+
+                {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="btn-secondary !py-2 !px-4 text-[11px]"
+                        >
+                            Prev
+                        </button>
+                        <span className="text-[11px] font-bold px-2">
+                            {currentPage} / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="btn-secondary !py-2 !px-4 text-[11px]"
+                        >
+                            Next
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

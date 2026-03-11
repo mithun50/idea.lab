@@ -287,29 +287,31 @@ export default function AdminPage() {
 
     if (!user) {
         return (
-            <main className="min-h-screen flex items-center justify-center px-4">
+            <main className="min-h-screen flex items-center justify-center px-4 bg-paper bg-[radial-gradient(rgba(13,13,13,0.03)_1px,transparent_1px)] [background-size:24px_24px]">
                 <div className="w-full max-w-md fade-in-up">
-                    <div className="text-center mb-8">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-cyan-500 shadow-xl shadow-violet-500/20 flex items-center justify-center mx-auto mb-4 text-white">
-                            <Lightbulb className="w-8 h-8" />
+                    <div className="text-center mb-10">
+                        <div className="w-20 h-20 bg-ink rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+                            <Lightbulb className="w-10 h-10 text-paper" />
                         </div>
-                        <h1 className="text-2xl font-bold mb-2 brand-font">Admin Panel</h1>
-                        <p className="text-slate-400 text-sm">Sign in securely to access the Idea Lab dashboard</p>
+                        <h1 className="text-5xl font-black mb-2 brand-font leading-none tracking-tight">ADMIN PANEL</h1>
+                        <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Secure Access Required</p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="glass-card p-6 md:p-8 space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
-                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@dbit.in" className="input-field" required />
+                    <form onSubmit={handleLogin} className="glass-card !p-10 space-y-6 shadow-2xl">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Admin Email</label>
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@dbit.in" className="input-field" required />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Password</label>
+                                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field" required />
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field" required />
-                        </div>
-                        {loginError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">{loginError}</p>}
+                        {loginError && <p className="text-red-600 text-[11px] font-bold uppercase tracking-wider bg-red-50 border border-red-200 p-4">{loginError}</p>}
                         
-                        <button type="submit" disabled={loginLoading} className="btn-primary w-full !py-4">
-                            {loginLoading ? <div className="spinner" /> : "Sign In to Dashboard"}
+                        <button type="submit" disabled={loginLoading} className="btn-primary w-full !py-5 text-sm">
+                            {loginLoading ? <div className="spinner" /> : "Authorize & Enter"}
                         </button>
                     </form>
                 </div>
@@ -318,34 +320,38 @@ export default function AdminPage() {
     }
 
     const navigationItems = [
-        { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { id: "registrations", label: "Registrations", icon: <Users className="w-5 h-5" /> },
-        { id: "pairs", label: "Pairs", icon: <UsersRound className="w-5 h-5" /> },
-        { id: "teams", label: "Teams", icon: <Trophy className="w-5 h-5" /> },
-        { id: "admins", label: "Admins", icon: <UserPlus className="w-5 h-5" /> },
-        { id: "settings", label: "Settings", icon: <Settings className="w-5 h-5" /> }
+        { id: "dashboard", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
+        { id: "registrations", label: "Registrations", icon: <Users className="w-4 h-4" /> },
+        { id: "pairs", label: "Pairs", icon: <UsersRound className="w-4 h-4" /> },
+        { id: "teams", label: "Teams", icon: <Trophy className="w-4 h-4" /> },
+        { id: "admins", label: "Admins", icon: <UserPlus className="w-4 h-4" /> },
+        { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> }
     ];
 
     return (
-        <main className="min-h-screen flex bg-zinc-950 text-white">
+        <main className="min-h-screen flex bg-paper text-ink">
             
             {/* Sidebar */}
-            <aside className="w-64 border-r border-white/10 bg-white/[0.02] flex flex-col hidden md:flex sticky top-0 h-screen">
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-violet-500/20">
-                            <Lightbulb className="w-5 h-5" />
+            <aside className="w-64 border-r-[1.5px] border-ink bg-paper2 flex flex-col hidden md:flex sticky top-0 h-screen">
+                <div className="flex-1 flex flex-col">
+                    <div className="p-8 border-b-[1.5px] border-ink bg-paper">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center">
+                                <Lightbulb className="w-4 h-4 text-paper" />
+                            </div>
+                            <span className="font-black text-xl tracking-tight brand-font">IDEA LAB</span>
                         </div>
-                        <span className="font-bold text-lg tracking-tight brand-font">Idea Lab Admin</span>
                     </div>
 
-                    <nav className="space-y-2">
+                    <nav className="p-4 space-y-1">
                         {navigationItems.map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id as TabType)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm font-medium
-                                    ${activeTab === item.id ? 'bg-violet-600/10 text-violet-300 border border-violet-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}
+                                className={`w-full flex items-center gap-4 px-5 py-4 transition-all text-[11px] font-bold uppercase tracking-widest
+                                    ${activeTab === item.id 
+                                        ? 'bg-ink text-paper border-l-4 border-red' 
+                                        : 'text-muted hover:text-ink hover:bg-paper'}
                                 `}
                             >
                                 {item.icon} {item.label}
@@ -354,111 +360,119 @@ export default function AdminPage() {
                     </nav>
                 </div>
 
-                <div className="p-6 mt-auto border-t border-white/10">
-                    <p className="text-xs text-slate-500 break-all mb-4">{user.email}</p>
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all text-sm font-medium">
-                        <LogOut className="w-5 h-5" /> Sign Out
+                <div className="p-6 border-t-[1.5px] border-ink bg-paper2 mt-auto">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-8 h-8 rounded-full bg-paper border border-line flex items-center justify-center overflow-hidden">
+                            <span className="text-[10px] font-bold">{user.email?.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div className="w-0 flex-1 overflow-hidden">
+                            <p className="text-[10px] font-bold truncate text-muted">{user.email}</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 border border-ink text-ink hover:bg-red hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest">
+                        <LogOut className="w-4 h-4" /> Sign Out
                     </button>
                 </div>
             </aside>
 
             {/* Mobile Topbar */}
-            <div className="md:hidden fixed top-0 w-full z-50 border-b border-white/10 bg-zinc-950/80 backdrop-blur-xl px-4 py-3 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center">
-                        <Lightbulb className="w-4 h-4 text-white" />
+            <div className="md:hidden fixed top-0 w-full z-50 border-b-[1.5px] border-ink bg-paper px-4 py-4 flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center">
+                            <Lightbulb className="w-4 h-4 text-paper" />
+                        </div>
+                        <span className="font-black text-lg brand-font">IDEA LAB</span>
                     </div>
+                    <button onClick={handleLogout} className="text-[10px] font-bold uppercase text-red-600">Sign Out</button>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                    {navigationItems.map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as TabType)}
-                            className={`px-3 py-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-colors
-                                ${activeTab === item.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}
+                            className={`px-4 py-2 whitespace-nowrap text-[10px] font-bold uppercase tracking-widest border
+                                ${activeTab === item.id ? 'bg-ink text-paper border-ink' : 'text-muted border-line'}
                             `}
                         >
                             {item.label}
                         </button>
                     ))}
-                    <button onClick={handleLogout} className="px-3 py-1.5 whitespace-nowrap rounded-md text-xs font-medium text-red-400 hover:text-red-300">
-                        Sign Out
-                    </button>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 p-4 md:p-8 pt-20 md:pt-8 w-full max-w-[100vw] overflow-x-hidden">
+            <div className="flex-1 p-6 md:p-12 pt-40 md:pt-12 w-full max-w-[100vw] overflow-y-auto">
                 
                 {dataLoading ? (
                     <div className="flex items-center justify-center h-[60vh]">
                         <div className="text-center">
-                            <div className="spinner mx-auto mb-4" style={{ width: 40, height: 40 }} />
-                            <p className="text-slate-400">Loading dashboard data...</p>
+                            <div className="spinner mx-auto mb-4 border-ink" style={{ width: 40, height: 40 }} />
+                            <p className="text-muted text-[11px] font-bold uppercase tracking-widest">Crunching Data...</p>
                         </div>
                     </div>
                 ) : (
-                    <div className="fade-in-up space-y-8 max-w-6xl mx-auto">
+                    <div className="fade-in-up space-y-12 max-w-6xl mx-auto">
                         
                         {activeTab === "dashboard" && (
                             <>
-                                <div>
-                                    <h1 className="text-3xl font-bold mb-2 brand-font">Overview</h1>
-                                    <p className="text-slate-400">Real-time statistics of the Idea Lab event.</p>
-                                </div>
+                                <header>
+                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">OVERVIEW</h1>
+                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Real-time Event Metrics</p>
+                                </header>
                                 
                                 <AdminStats totalRegistrations={totalRegistrations} confirmedPairs={confirmedPairs} pendingRegistrations={pendingRegistrations} teamsFormed={teamsFormed} />
 
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                                    <div className="glass-card p-6 xl:col-span-2 shadow-2xl">
-                                        <h2 className="font-bold text-lg mb-6 flex items-center gap-2"><LayoutDashboard className="w-5 h-5 text-violet-400"/> Branch Distribution</h2>
-                                        <div className="space-y-4">
+                                <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+                                    <div className="glass-card xl:col-span-3 !p-10 border-[1.5px] border-ink">
+                                        <h2 className="font-black text-2xl mb-8 brand-font flex items-center gap-3 uppercase tracking-wider"><LayoutDashboard className="w-6 h-6 text-red"/> Branch Distribution</h2>
+                                        <div className="space-y-6">
                                             {Object.entries(branchStats).sort(([, a], [, b]) => b - a).map(([branch, count]) => (
-                                                <div key={branch} className="flex items-center gap-4">
-                                                    <span className="text-sm font-bold w-16 text-slate-300">{branch}</span>
-                                                    <div className="flex-1 h-10 rounded-xl overflow-hidden bg-white/5 border border-white/5 relative">
+                                                <div key={branch} className="space-y-2">
+                                                    <div className="flex justify-between items-end">
+                                                        <span className="text-[11px] font-black uppercase tracking-widest text-ink">{branch}</span>
+                                                        <span className="text-[11px] font-black uppercase tracking-widest text-muted">{count} ENROLLED</span>
+                                                    </div>
+                                                    <div className="h-6 border-[1.5px] border-ink bg-paper2 relative">
                                                         <div
-                                                            className="absolute top-0 left-0 h-full rounded-xl transition-all duration-1000 ease-out flex items-center pl-4"
+                                                            className="absolute top-0 left-0 h-full transition-all duration-1000 ease-out"
                                                             style={{
                                                                 width: `${(count / maxBranchCount) * 100}%`,
-                                                                backgroundColor: branchColors[branch] || "#7c3aed",
-                                                                minWidth: "48px",
+                                                                backgroundColor: branchColors[branch] || "var(--ink)",
                                                             }}
-                                                        >
-                                                            <span className="text-sm font-bold text-white shadow-sm">{count}</span>
-                                                        </div>
+                                                        />
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <div className="glass-card p-6 flex flex-col shadow-2xl border-t-2 border-t-cyan-500">
+                                    <div className="glass-card xl:col-span-2 !p-10 border-[1.5px] border-ink bg-paper2 flex flex-col">
                                         <div>
-                                            <h2 className="font-bold text-lg mb-2 flex items-center gap-2"><Trophy className="w-5 h-5 text-cyan-400"/> Team Matching</h2>
-                                            <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                                                Run the matching algorithm to aggregate confirmed pairs into cross-branch teams of 6.
+                                            <h2 className="font-black text-2xl mb-4 brand-font flex items-center gap-3 uppercase tracking-wider"><Trophy className="w-6 h-6 text-red"/> Matchmaker</h2>
+                                            <p className="text-muted text-xs font-bold uppercase leading-relaxed tracking-widest mb-8">
+                                                Aggregate confirmed pairs into cross-branch units.
                                             </p>
-                                            <div className="text-sm space-y-3 mb-8 bg-black/20 p-4 rounded-xl border border-white/5">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-slate-400">Ready Pairs Data</span>
-                                                    <span className="font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg">{confirmedPairs}</span>
+                                            <div className="space-y-4 mb-10">
+                                                <div className="flex justify-between items-center p-4 border border-ink bg-paper">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Ready Pairs</span>
+                                                    <span className="font-black text-xl brand-font">{confirmedPairs}</span>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-slate-400">Expected Teams</span>
-                                                    <span className="font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-lg">~{Math.floor(confirmedPairs / 3)}</span>
+                                                <div className="flex justify-between items-center p-4 border border-ink bg-paper">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Est. Teams</span>
+                                                    <span className="font-black text-xl brand-font">{Math.floor(confirmedPairs / 3)}</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-3 mt-auto">
-                                            <button onClick={runMatching} disabled={matchingInProgress || confirmedPairs < 3} className="btn-primary w-full !py-4 shadow-lg shadow-violet-600/20">
-                                                {matchingInProgress ? <><div className="spinner" /> Running...</> : <><Play className="w-5 h-5 fill-current" /> Execute Matching Algorithm</>}
+                                        <div className="space-y-4 mt-auto">
+                                            <button onClick={runMatching} disabled={matchingInProgress || confirmedPairs < 3} className="btn-primary w-full !py-5 shadow-xl">
+                                                {matchingInProgress ? <div className="spinner" /> : <><Play className="w-4 h-4 fill-current" /> Execute Matching</>}
                                             </button>
                                             {matchingResult && (
-                                                <p className={`text-sm p-4 rounded-xl font-medium ${matchingResult.startsWith("✅") ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : matchingResult.startsWith("❌") ? "bg-red-500/15 text-red-300 border border-red-500/20" : "bg-amber-500/15 text-amber-300 border border-amber-500/20"}`}>
+                                                <div className={`text-[10px] font-bold uppercase tracking-[0.12em] p-4 border border-ink text-center leading-relaxed ${matchingResult.startsWith("✅") ? "bg-[#10b981] text-white" : "bg-red text-white"}`}>
                                                     {matchingResult}
-                                                </p>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -467,60 +481,64 @@ export default function AdminPage() {
                         )}
 
                         {activeTab === "registrations" && (
-                            <div className="fade-in-up">
-                                <div className="mb-6 flex items-center justify-between">
+                            <div className="fade-in-up space-y-8">
+                                <header className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
                                      <div>
-                                        <h1 className="text-3xl font-bold mb-2 brand-font">Registrations</h1>
-                                        <p className="text-slate-400">View and manage all student registrations.</p>
+                                        <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">REGISTRATIONS</h1>
+                                        <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Full Participant Directory</p>
                                      </div>
-                                     <button onClick={fetchStudents} className="btn-secondary !py-2 text-sm hidden sm:flex">↻ Refresh</button>
-                                </div>
-                                <div className="glass-card p-6 shadow-2xl">
+                                     <button onClick={fetchStudents} className="btn-secondary !text-[10px] !font-black !px-6">↻ RELOAD DATA</button>
+                                </header>
+                                <div className="glass-card shadow-xl !p-1">
                                     <StudentTable students={students} />
                                 </div>
                             </div>
                         )}
 
                         {activeTab === "pairs" && (
-                            <div className="fade-in-up">
-                                <h1 className="text-3xl font-bold mb-2 brand-font text-emerald-400">Pairs Directory</h1>
-                                <p className="text-slate-400 mb-6">Showing all valid registration pairings.</p>
-                                <div className="glass-card p-6">
+                            <div className="fade-in-up space-y-8">
+                                <div>
+                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight text-ink">PAIRS</h1>
+                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Confirmed Duos Ready for Matching</p>
+                                </div>
+                                <div className="glass-card shadow-xl !p-1">
                                      <StudentTable students={students.filter(s => s.pairStatus === "confirmed")} />
                                 </div>
                             </div>
                         )}
 
                         {activeTab === "teams" && (
-                            <div className="fade-in-up">
-                                <h1 className="text-3xl font-bold mb-2 brand-font text-cyan-400">Teams Generated</h1>
-                                <p className="text-slate-400 mb-6">Review the matched cross-branch teams.</p>
-                                <div className="glass-card p-6">
+                            <div className="fade-in-up space-y-8">
+                                <div>
+                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight text-ink">TEAMS</h1>
+                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Generated Cross-Branch Collaborations</p>
+                                </div>
+                                <div className="glass-card shadow-xl !p-1">
                                      <StudentTable students={students.filter(s => s.teamId !== null)} />
                                 </div>
                             </div>
                         )}
 
                         {activeTab === "admins" && (
-                            <div className="fade-in-up space-y-6">
-                                <div>
-                                    <h1 className="text-3xl font-bold mb-2 brand-font">Manage Admins</h1>
-                                    <p className="text-slate-400">Add or remove administrator access for the Idea Lab portal.</p>
-                                </div>
+                            <div className="fade-in-up space-y-10">
+                                <header>
+                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">ADMINS</h1>
+                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Manage Portal Permissions</p>
+                                </header>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-6">
-                                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                            <UserPlus className="w-5 h-5 text-violet-400" /> Add New Admin
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                    <div className="glass-card !p-10 border-[1.5px] border-ink flex flex-col">
+                                        <h3 className="font-black text-2xl mb-8 brand-font uppercase tracking-wider flex items-center gap-3">
+                                            <UserPlus className="w-6 h-6 text-red" /> Authorize Admin
                                         </h3>
-                                        <form onSubmit={handleAddAdmin} className="space-y-4">
+                                        <form onSubmit={handleAddAdmin} className="space-y-6">
                                             <div>
-                                                <label className="block text-sm font-medium text-slate-400 mb-2">Email Address</label>
+                                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Email Address</label>
                                                 <input 
                                                     type="email" 
                                                     value={newAdminEmail}
                                                     onChange={(e) => setNewAdminEmail(e.target.value)}
-                                                    placeholder="colleague@dbit.in"
+                                                    placeholder="admin@dbit.in"
                                                     className="input-field"
                                                     required
                                                 />
@@ -528,36 +546,36 @@ export default function AdminPage() {
                                             <button 
                                                 type="submit" 
                                                 disabled={adminActionLoading || !newAdminEmail}
-                                                className="btn-primary w-full !py-3"
+                                                className="btn-primary w-full !py-4"
                                             >
-                                                {adminActionLoading ? <div className="spinner" /> : "Authorize Admin"}
+                                                {adminActionLoading ? <div className="spinner" /> : "GRANT ACCESS"}
                                             </button>
                                         </form>
                                     </div>
 
-                                    <div className="glass-card p-6">
-                                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                            <Users className="w-5 h-5 text-cyan-400" /> Current Administrators
+                                    <div className="glass-card !p-10 border-[1.5px] border-ink bg-paper2">
+                                        <h3 className="font-black text-2xl mb-8 brand-font uppercase tracking-wider flex items-center gap-3">
+                                            <Users className="w-6 h-6 text-red" /> Authorized Staff
                                         </h3>
                                         <div className="space-y-3">
                                             {admins.length === 0 ? (
-                                                <div className="text-center py-4 bg-white/5 rounded-lg">
-                                                    <p className="text-slate-500 text-sm italic">Only you are currently authorized.</p>
+                                                <div className="text-center py-8 border-[1.5px] border-dashed border-ink/20">
+                                                    <p className="text-muted text-[10px] font-bold uppercase tracking-widest">Root access only.</p>
                                                 </div>
                                             ) : (
                                                 admins.map((email) => (
-                                                    <div key={email} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
-                                                        <span className="text-sm font-medium text-slate-200">{email}</span>
+                                                    <div key={email} className="flex items-center justify-between p-4 bg-paper border-[1.5px] border-ink">
+                                                        <span className="text-[11px] font-black tracking-tight text-ink">{email}</span>
                                                         {email !== user?.email && (
                                                             <button 
                                                                 onClick={() => handleRemoveAdmin(email)}
-                                                                className="text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                                                                className="text-red font-bold text-[10px] uppercase hover:underline"
                                                             >
-                                                                Remove
+                                                                REVOKE
                                                             </button>
                                                         )}
                                                         {email === user?.email && (
-                                                            <span className="text-violet-400 text-[10px] font-bold uppercase tracking-widest bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20">You</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-[0.2em] bg-ink text-paper px-2 py-0.5">YOU</span>
                                                         )}
                                                     </div>
                                                 ))
@@ -569,99 +587,96 @@ export default function AdminPage() {
                         )}
                         
                         {activeTab === "settings" && (
-                             <div className="fade-in-up">
-                                <h1 className="text-3xl font-bold mb-2 brand-font">Lab Settings</h1>
-                                <p className="text-slate-400 mb-8">Configure event properties and management tasks.</p>
+                             <div className="fade-in-up space-y-10">
+                                <header>
+                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">SETTINGS</h1>
+                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Global Configurations</p>
+                                </header>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="glass-card p-6 border-t-2 border-transparent">
-                                        <Settings className="w-8 h-8 text-slate-400 mb-4" />
-                                        <h3 className="font-bold text-lg mb-2">Registration Status</h3>
-                                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                                            Instantly open or close the registration portal. Current status: 
-                                            <span className={`ml-2 font-bold ${registrationsOpen ? "text-emerald-400" : "text-red-400"}`}>
-                                                {registrationsOpen ? "OPEN" : "CLOSED"}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                    <div className="glass-card !p-10 border-[1.5px] border-ink">
+                                        <Settings className="w-10 h-10 text-muted mb-6" />
+                                        <h3 className="font-black text-2xl mb-2 brand-font uppercase tracking-wider">Gate Control</h3>
+                                        <p className="text-muted text-xs font-bold uppercase tracking-widest mb-10 leading-relaxed">
+                                            Portal is currently 
+                                            <span className={`ml-2 px-2 py-0.5 ${registrationsOpen ? "bg-[#10b981] text-white" : "bg-red text-white"}`}>
+                                                {registrationsOpen ? "OPEN" : "LOCKED"}
                                             </span>
                                         </p>
                                         <button 
                                             onClick={toggleRegistrations}
                                             disabled={configLoading}
-                                            className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                                                registrationsOpen 
-                                                ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white" 
-                                                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
-                                            }`}
+                                            className="btn-primary w-full !py-4"
                                         >
-                                            {configLoading ? <div className="spinner" /> : (registrationsOpen ? "Close Registrations" : "Open Registrations")}
+                                            {configLoading ? <div className="spinner" /> : (registrationsOpen ? "LOCK PORTAL" : "OPEN PORTAL")}
                                         </button>
                                     </div>
 
-                                    <div className="glass-card p-6 border-t-2 border-red-500/50 bg-red-500/5">
-                                        <ShieldAlert className="w-8 h-8 text-red-400 mb-4" />
-                                        <h3 className="font-bold text-lg mb-2 text-red-200">Danger Zone</h3>
-                                        <p className="text-red-400/70 text-sm mb-6 leading-relaxed">
-                                            Erase all student registrations and team data. This action is irreversible.
+                                    <div className="glass-card !p-10 border-[1.5px] border-red bg-red/5">
+                                        <ShieldAlert className="w-10 h-10 text-red mb-6" />
+                                        <h3 className="font-black text-2xl mb-2 brand-font uppercase tracking-wider text-red">Danger Operations</h3>
+                                        <p className="text-red text-xs font-bold uppercase tracking-widest mb-10 leading-relaxed">
+                                            Wipe all student and team data. Proceed with extreme caution.
                                         </p>
                                         <button 
                                             onClick={() => setShowResetModal(true)}
-                                            className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center gap-2"
+                                            className="w-full py-4 border-[1.5px] border-red text-red hover:bg-red hover:text-white transition-all text-[11px] font-black uppercase tracking-[0.2em]"
                                         >
-                                            <Eraser className="w-5 h-5" /> Reset All Database Data
+                                            <Eraser className="w-4 h-4" /> RESET DATABASE
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         )}
-
                     </div>
                 )}
             </div>
 
             {/* Reset Database Modal */}
             {showResetModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
-                    <div className="glass-card max-w-md w-full p-8 border-red-500/30 shadow-2xl shadow-red-500/10">
-                        <div className="text-center mb-6">
-                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-ink/90 backdrop-blur-sm fade-in">
+                    <div className="glass-card max-w-md w-full !p-12 border-red shadow-2xl">
+                        <div className="text-center mb-10">
+                            <div className="w-20 h-20 rounded-full bg-red flex items-center justify-center mx-auto mb-6 shadow-xl">
+                                <AlertTriangle className="w-10 h-10 text-white" />
                             </div>
-                            <h2 className="text-2xl font-bold text-white mb-2">Critical Action</h2>
-                            <p className="text-slate-400 text-sm leading-relaxed">
-                                You are about to <span className="text-red-400 font-bold">permanently delete</span> all registration data. This cannot be undone.
+                            <h2 className="text-4xl font-black text-ink mb-2 brand-font uppercase">DANGER ZONE</h2>
+                            <p className="text-muted text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                                Permanently erase all <span className="text-red">registration units</span>.
                             </p>
                         </div>
 
-                        <form onSubmit={handleResetDatabase} className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                                    <KeyRound className="w-4 h-4" /> Confirm your Password
-                                </label>
-                                <input 
-                                    type="password" 
-                                    value={resetPassword} 
-                                    onChange={(e) => setResetPassword(e.target.value)}
-                                    placeholder="Enter admin password"
-                                    className="input-field"
-                                    required
-                                />
-                            </div>
+                        <form onSubmit={handleResetDatabase} className="space-y-8">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Admin Password</label>
+                                    <input 
+                                        type="password" 
+                                        value={resetPassword} 
+                                        onChange={(e) => setResetPassword(e.target.value)}
+                                        placeholder="REQUIRED"
+                                        className="input-field"
+                                        required
+                                    />
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
-                                    Type <span className="text-white font-mono font-bold italic">reset database</span> to confirm
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={resetPhrase} 
-                                    onChange={(e) => setResetPhrase(e.target.value)}
-                                    placeholder="reset database"
-                                    className="input-field"
-                                    required
-                                />
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
+                                        Type <span className="text-red font-black italic">reset database</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        value={resetPhrase} 
+                                        onChange={(e) => setResetPhrase(e.target.value)}
+                                        placeholder="CONFIRMATION PHRASE"
+                                        className="input-field"
+                                        required
+                                    />
+                                </div>
                             </div>
 
                             {resetError && (
-                                <p className="text-red-400 text-xs bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                                <p className="text-white text-[10px] font-bold uppercase tracking-wider bg-red p-4 border border-ink">
                                     {resetError}
                                 </p>
                             )}
@@ -670,16 +685,16 @@ export default function AdminPage() {
                                 <button 
                                     type="button" 
                                     onClick={() => { setShowResetModal(false); setResetError(""); setResetPassword(""); setResetPhrase(""); }}
-                                    className="flex-1 btn-secondary"
+                                    className="flex-1 btn-secondary text-[10px]"
                                 >
-                                    Cancel
+                                    ABORT
                                 </button>
                                 <button 
                                     type="submit" 
                                     disabled={resetLoading || resetPhrase !== "reset database" || !resetPassword}
-                                    className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-4 bg-red text-white font-black uppercase tracking-widest text-[11px] hover:bg-ink disabled:opacity-30 transition-all border border-ink"
                                 >
-                                    {resetLoading ? <div className="spinner" /> : "Delete Data"}
+                                    {resetLoading ? <div className="spinner border-white" /> : "ERASE DATA"}
                                 </button>
                             </div>
                         </form>

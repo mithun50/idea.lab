@@ -61,20 +61,13 @@ export default function AdminStats({
             {stats.map((stat, i) => (
                 <div
                     key={i}
-                    className="glass-card p-5 relative overflow-hidden"
+                    className="glass-card !p-6 flex flex-col justify-between"
                     style={{ animationDelay: `${i * 0.1}s` }}
                 >
-                    {/* Background glow */}
-                    <div
-                        className="absolute inset-0 opacity-30"
-                        style={{
-                            background: `radial-gradient(circle at top right, ${stat.bgGlow}, transparent 70%)`,
-                        }}
-                    />
-                    <div className="relative">
-                        <div className="mb-2 text-white">{stat.icon}</div>
-                        <p className="text-3xl font-black mb-1">{stat.value}</p>
-                        <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                    <div className="text-slate-400 mb-4">{stat.icon}</div>
+                    <div>
+                        <p className="text-5xl font-black mb-1 brand-font leading-none">{stat.value}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.16em]">
                             {stat.label}
                         </p>
                     </div>
