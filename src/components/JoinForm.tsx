@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimestamp, limit } from "firebase/firestore";
 import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
-import { CheckCircle2, UserPlus } from "lucide-react";
+import { CheckCircle2, UserPlus, Lock } from "lucide-react";
 
 export default function JoinForm() {
     const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -25,6 +25,26 @@ export default function JoinForm() {
         usn: "",
         phone: ""
     });
+
+    const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const checkStatus = async () => {
+            try {
+                const q = query(collection(db, "config"), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    setRegistrationOpen(snap.docs[0].data().registrationsOpen ?? true);
+                } else {
+                    setRegistrationOpen(true);
+                }
+            } catch (error) {
+                console.error("Config fetch error:", error);
+                setRegistrationOpen(true);
+            }
+        };
+        checkStatus();
+    }, []);
 
     const verifyPairCode = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -180,6 +200,28 @@ export default function JoinForm() {
                 </button>
             </form>
         );
+    }
+
+    if (registrationOpen === false) {
+        return (
+            <div className="text-center p-8 space-y-6 fade-in-up glass-card border-amber-500/20">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                    <Lock className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="text-2xl font-bold brand-font">Registrations Closed</h3>
+                <p className="text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    The registration window for <span className="text-white font-bold">Idea Lab</span> is currently closed. 
+                    You cannot join a pair at this time.
+                </p>
+                <div className="pt-4">
+                   <a href="/" className="btn-secondary w-full">Back to Home</a>
+                </div>
+            </div>
+        );
+    }
+
+    if (registrationOpen === null) {
+        return <div className="text-center p-12"><div className="spinner mx-auto" /></div>;
     }
 
     return (

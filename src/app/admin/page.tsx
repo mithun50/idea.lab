@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { db, auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch, setDoc } from "firebase/firestore";
 import { generateTeams, StudentPair } from "@/lib/matchingAlgorithm";
 import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
@@ -43,12 +43,44 @@ export default function AdminPage() {
     const [resetLoading, setResetLoading] = useState(false);
     const [resetError, setResetError] = useState("");
 
+    // Admin Management States
+    const [admins, setAdmins] = useState<string[]>([]);
+    const [newAdminEmail, setNewAdminEmail] = useState("");
+    const [adminActionLoading, setAdminActionLoading] = useState(false);
+
+    // Settings States
+    const [registrationsOpen, setRegistrationsOpen] = useState(true);
+    const [configLoading, setConfigLoading] = useState(false);
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setAuthLoading(false);
         });
         return () => unsubscribe();
+    }, []);
+
+    const fetchAdmins = useCallback(async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "admins"));
+            const list: string[] = [];
+            snapshot.forEach(doc => list.push(doc.data().email));
+            setAdmins(list);
+        } catch (error) {
+            console.error("Error fetching admins:", error);
+        }
+    }, []);
+
+    const fetchConfig = useCallback(async () => {
+        try {
+            const docSnap = await getDocs(query(collection(db, "config")));
+            if (!docSnap.empty) {
+                const data = docSnap.docs[0].data();
+                setRegistrationsOpen(data.registrationsOpen ?? true);
+            }
+        } catch (error) {
+            console.error("Error fetching config:", error);
+        }
     }, []);
 
     const fetchStudents = useCallback(async () => {
@@ -71,12 +103,14 @@ export default function AdminPage() {
                 });
             });
             setStudents(data);
+            await fetchAdmins();
+            await fetchConfig();
         } catch (error) {
-            console.error("Error fetching students:", error);
+            console.error("Error fetching data:", error);
         } finally {
             setDataLoading(false);
         }
-    }, []);
+    }, [fetchAdmins, fetchConfig]);
 
     useEffect(() => {
         if (user) fetchStudents();
@@ -142,6 +176,51 @@ export default function AdminPage() {
             setResetError(error.message || "Failed to reset database. Check your password.");
         } finally {
             setResetLoading(false);
+        }
+    };
+
+    const handleAddAdmin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newAdminEmail.trim()) return;
+        setAdminActionLoading(true);
+        try {
+            const id = newAdminEmail.trim().toLowerCase().replace(/[@.]/g, "_");
+            const { setDoc } = await import("firebase/firestore");
+            await setDoc(doc(db, "admins", id), { email: newAdminEmail.trim().toLowerCase() });
+            setNewAdminEmail("");
+            await fetchAdmins();
+        } catch (error) {
+            console.error("Error adding admin:", error);
+            alert("Failed to add admin.");
+        } finally {
+            setAdminActionLoading(false);
+        }
+    };
+
+    const handleRemoveAdmin = async (email: string) => {
+        if (!confirm(`Are you sure you want to remove ${email} as an admin?`)) return;
+        setAdminActionLoading(true);
+        try {
+            const id = email.replace(/[@.]/g, "_");
+            await deleteDoc(doc(db, "admins", id));
+            await fetchAdmins();
+        } catch (error) {
+            console.error("Error removing admin:", error);
+        } finally {
+            setAdminActionLoading(false);
+        }
+    };
+
+    const toggleRegistrations = async () => {
+        setConfigLoading(true);
+        try {
+            const { setDoc } = await import("firebase/firestore");
+            await setDoc(doc(db, "config", "global_config"), { registrationsOpen: !registrationsOpen }, { merge: true });
+            setRegistrationsOpen(!registrationsOpen);
+        } catch (error) {
+            console.error("Error updating config:", error);
+        } finally {
+            setConfigLoading(false);
         }
     };
 
@@ -423,17 +502,68 @@ export default function AdminPage() {
                         )}
 
                         {activeTab === "admins" && (
-                            <div className="fade-in-up">
-                                <h1 className="text-3xl font-bold mb-2 brand-font">Manage Admins</h1>
-                                <p className="text-slate-400 mb-6">Add or remove administrator access.</p>
-                                <div className="glass-card p-8 text-center max-w-lg mx-auto">
-                                    <UserPlus className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                                    <h3 className="font-bold text-xl mb-2">Admin Management</h3>
-                                    <p className="text-slate-400 text-sm mb-6">
-                                        You are currently logged in as <strong className="text-white">{user.email}</strong>. 
-                                        To add new administrators, you need to set up Firebase admin role arrays or use Firebase Identity Platform.
-                                    </p>
-                                    <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">Add New Admin (Coming soon)</button>
+                            <div className="fade-in-up space-y-6">
+                                <div>
+                                    <h1 className="text-3xl font-bold mb-2 brand-font">Manage Admins</h1>
+                                    <p className="text-slate-400">Add or remove administrator access for the Idea Lab portal.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="glass-card p-6">
+                                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                            <UserPlus className="w-5 h-5 text-violet-400" /> Add New Admin
+                                        </h3>
+                                        <form onSubmit={handleAddAdmin} className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-400 mb-2">Email Address</label>
+                                                <input 
+                                                    type="email" 
+                                                    value={newAdminEmail}
+                                                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                                                    placeholder="colleague@dbit.in"
+                                                    className="input-field"
+                                                    required
+                                                />
+                                            </div>
+                                            <button 
+                                                type="submit" 
+                                                disabled={adminActionLoading || !newAdminEmail}
+                                                className="btn-primary w-full !py-3"
+                                            >
+                                                {adminActionLoading ? <div className="spinner" /> : "Authorize Admin"}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="glass-card p-6">
+                                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                            <Users className="w-5 h-5 text-cyan-400" /> Current Administrators
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {admins.length === 0 ? (
+                                                <div className="text-center py-4 bg-white/5 rounded-lg">
+                                                    <p className="text-slate-500 text-sm italic">Only you are currently authorized.</p>
+                                                </div>
+                                            ) : (
+                                                admins.map((email) => (
+                                                    <div key={email} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
+                                                        <span className="text-sm font-medium text-slate-200">{email}</span>
+                                                        {email !== user?.email && (
+                                                            <button 
+                                                                onClick={() => handleRemoveAdmin(email)}
+                                                                className="text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                        {email === user?.email && (
+                                                            <span className="text-violet-400 text-[10px] font-bold uppercase tracking-widest bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20">You</span>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -446,12 +576,24 @@ export default function AdminPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="glass-card p-6 border-t-2 border-transparent">
                                         <Settings className="w-8 h-8 text-slate-400 mb-4" />
-                                        <h3 className="font-bold text-lg mb-2">Platform Configurations</h3>
+                                        <h3 className="font-bold text-lg mb-2">Registration Status</h3>
                                         <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                                            Toggle registration open/close, modify section mappings, 
-                                            and change event dates.
+                                            Instantly open or close the registration portal. Current status: 
+                                            <span className={`ml-2 font-bold ${registrationsOpen ? "text-emerald-400" : "text-red-400"}`}>
+                                                {registrationsOpen ? "OPEN" : "CLOSED"}
+                                            </span>
                                         </p>
-                                        <button disabled className="btn-secondary w-full opacity-50 cursor-not-allowed">Edit Configurations (Soon)</button>
+                                        <button 
+                                            onClick={toggleRegistrations}
+                                            disabled={configLoading}
+                                            className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                                                registrationsOpen 
+                                                ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white" 
+                                                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                                            }`}
+                                        >
+                                            {configLoading ? <div className="spinner" /> : (registrationsOpen ? "Close Registrations" : "Open Registrations")}
+                                        </button>
                                     </div>
 
                                     <div className="glass-card p-6 border-t-2 border-red-500/50 bg-red-500/5">

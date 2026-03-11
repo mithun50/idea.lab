@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, getDocs, limit } from "firebase/firestore";
 import { validateUSN, areSameSection, getBranchName, getSection } from "@/lib/usnValidator";
-import { CheckCircle2, Copy, Share2, PencilLine } from "lucide-react";
+import { CheckCircle2, Copy, Share2, PencilLine, Lock } from "lucide-react";
 
 interface FormData {
     name: string;
@@ -31,6 +31,26 @@ export default function RegistrationForm() {
         pairStatus?: string;
         pairCode?: string;
     } | null>(null);
+
+    const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const checkStatus = async () => {
+            try {
+                const q = query(collection(db, "config"), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    setRegistrationOpen(snap.docs[0].data().registrationsOpen ?? true);
+                } else {
+                    setRegistrationOpen(true);
+                }
+            } catch (error) {
+                console.error("Config fetch error:", error);
+                setRegistrationOpen(true);
+            }
+        };
+        checkStatus();
+    }, []);
 
     const validateField = useCallback((field: "usn" | "partnerUSN", value: string) => {
         const upperValue = value.toUpperCase();
@@ -166,6 +186,25 @@ export default function RegistrationForm() {
                 )}
             </div>
         );
+    }
+
+    if (registrationOpen === false) {
+        return (
+            <div className="text-center p-8 space-y-6 fade-in-up glass-card border-amber-500/20">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                    <Lock className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="text-2xl font-bold brand-font">Registrations Closed</h3>
+                <p className="text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    The registration window for <span className="text-white font-bold">Idea Lab</span> is currently closed. 
+                    Please check back later or contact your department admin.
+                </p>
+            </div>
+        );
+    }
+
+    if (registrationOpen === null) {
+        return <div className="text-center p-12"><div className="spinner mx-auto" /></div>;
     }
 
     return (
