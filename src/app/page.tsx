@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 export default function Home() {
   // Scroll reveal
@@ -32,34 +33,14 @@ export default function Home() {
 
   return (
     <>
-      {/* NAV */}
-      <nav>
-        <Link href="/" className="nav-logo">
-          <div className="logo-mark">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F2EFE9" strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
-            </svg>
-          </div>
-          Idea Lab
-        </Link>
-        <div className="nav-right">
-          <Link href="/status" className="nav-link">Check Status</Link>
-          <Link href="/register" className="nav-btn">
-            Register
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* TICKER */}
       <div className="ticker">
         <div className="ticker-inner">
           {[...Array(2)].map((_, i) => (
             <span key={i} style={{ display: "contents" }}>
-              {["Registration Open", "825+ Students Enrolled", "Cross-Branch Teams of 6", "Don Bosco Institute of Technology", "2026 Cohort", "Register with Your Partner"].map((text) => (
+              {["Team Formation Open", "825+ Students", "Build Your Team of 6", "Don Bosco Institute of Technology", "2026 Cohort", "Cross-Branch Diversity"].map((text) => (
                 <span key={text + i} className="ticker-item">
                   <span className="ticker-dot" />
                   {text}
@@ -80,27 +61,28 @@ export default function Home() {
           </div>
 
           <h1 className="hero-h1">
-            <span>Register.</span>
-            <span className="stroke-text">Pair Up.</span>
-            <span>Innovate.</span>
+            <span>Build Your</span>
+            <span className="stroke-text">Dream</span>
+            <span>Team.</span>
           </h1>
 
           <div className="hero-bottom">
             <p className="hero-desc">
-              Join <strong>825+ first-year students</strong> in cross-branch teams of 6.
-              Register with your partner — the system matches you with students from other branches.
+              Join <strong>825+ first-year students</strong> in self-organized cross-branch teams of 6.
+              Register, create or join a team, and build something great together.
             </p>
             <div className="hero-cta-group">
               <Link href="/register" className="btn-large">
-                Register Now
+                Get Started
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </Link>
-              <Link href="/status" className="btn-outline">
-                Check Status
+              <Link href="/team/browse" className="btn-outline">
+                Browse Teams
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
               </Link>
             </div>
@@ -117,7 +99,7 @@ export default function Home() {
               Students
             </div>
             <div className="stat-number">825<span style={{ color: "var(--red)" }}>+</span></div>
-            <div className="stat-sub">First-year students across all branches registered</div>
+            <div className="stat-sub">First-year students across all branches</div>
           </div>
 
           <div className="stat-block">
@@ -128,7 +110,7 @@ export default function Home() {
               Team Size
             </div>
             <div className="stat-number accent">6</div>
-            <div className="stat-sub">Students per team across different branches</div>
+            <div className="stat-sub">Members per team, cross-branch diversity required</div>
           </div>
 
           <div className="stat-block">
@@ -139,7 +121,7 @@ export default function Home() {
               Steps to Join
             </div>
             <div className="stat-number">3</div>
-            <div className="stat-sub">Simple steps from registration to team formation</div>
+            <div className="stat-sub">Register, create or join a team, invite members</div>
           </div>
         </div>
       </section>
@@ -164,12 +146,30 @@ export default function Home() {
             </div>
             <div className="step-index">— 01</div>
             <div className="step-name">Register</div>
-            <div className="step-desc">Fill out your details and enter your partner&apos;s USN. Both of you must be from the same section. The form takes under two minutes.</div>
+            <div className="step-desc">Enter your USN to register. Your details are auto-filled from the student database. Takes under a minute.</div>
             <div className="step-tag">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
               </svg>
-              &lt; 2 min
+              &lt; 1 min
+            </div>
+          </div>
+
+          <div className="step">
+            <div className="step-icon-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+              </svg>
+            </div>
+            <div className="step-index">— 02</div>
+            <div className="step-name">Build Team</div>
+            <div className="step-desc">Create your own team or browse open teams to join. Invite classmates from different branches using their USN.</div>
+            <div className="step-tag" style={{ borderColor: "rgba(232,52,26,0.3)", color: "var(--red)" }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              Self-organized
             </div>
           </div>
 
@@ -179,32 +179,14 @@ export default function Home() {
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <div className="step-index">— 02</div>
-            <div className="step-name">Pair Confirmed</div>
-            <div className="step-desc">When both partners register with each other&apos;s USN, the pair is automatically confirmed — no admin approval or extra steps required.</div>
-            <div className="step-tag" style={{ borderColor: "rgba(232,52,26,0.3)", color: "var(--red)" }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-              Automatic
-            </div>
-          </div>
-
-          <div className="step">
-            <div className="step-icon-wrap">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </div>
             <div className="step-index">— 03</div>
-            <div className="step-name">Team Formed</div>
-            <div className="step-desc">Admin matches confirmed pairs into cross-branch teams of 6, ensuring maximum diversity and a rich collaborative experience.</div>
+            <div className="step-name">Team Ready</div>
+            <div className="step-desc">Once your team has 6 members with cross-branch diversity (including EEE/ECE), you&apos;re locked in and ready to innovate.</div>
             <div className="step-tag">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              Admin matched
+              6 Members
             </div>
           </div>
         </div>
@@ -220,11 +202,11 @@ export default function Home() {
           </div>
           <div className="faq-list">
             {[
-              { q: "How does pair registration work?", a: "You and your partner both register individually, entering each other's USN. Once both registrations are complete with matching USNs, your pair is automatically confirmed — no manual step needed from either of you." },
-              { q: "How are teams formed?", a: "Once enough pairs are confirmed, the admin matches three confirmed pairs from different branches into one team of 6. The goal is cross-branch diversity to encourage creative, multi-disciplinary collaboration." },
-              { q: "When will I see my team?", a: "Team assignments happen after the registration window closes and all pairs are confirmed. Check the Status page at any time using your USN to see your current pairing and team status." },
-              { q: "What if my partner hasn't registered yet?", a: "Go ahead and register with their USN. Your status will show 'pending' until your partner completes their own registration. As soon as they do and reference your USN, the pair is instantly confirmed." },
-              { q: "Can I change my partner after registering?", a: "Partner changes depend on whether your pair has already been confirmed and whether a team has been assigned. Reach out to your coordinator through the admin portal for assistance." },
+              { q: "How do I form a team?", a: "After registering, go to your Dashboard and click 'Create Team'. You'll become the team lead. Then invite other students by entering their USN — they'll get a notification to accept. You can also browse existing teams and request to join one." },
+              { q: "What are the team requirements?", a: "Each team needs exactly 6 members with at least 2 different branches, no more than 4 from the same branch, and at least 1 member from EEE or ECE. The system validates constraints in real-time as you build your team." },
+              { q: "Can I join a team without creating one?", a: "Yes! Go to 'Browse Teams' to see all public teams that are still forming. Click 'Request to Join' and the team lead will approve or reject your request. You can also accept invites from team leads." },
+              { q: "What if someone rejects my join request?", a: "You can request to join other teams or create your own. There's no limit on how many requests you can send, though you can only be on one team at a time." },
+              { q: "How do I check my team status?", a: "Visit the Status page and enter your USN, or log in to your Dashboard to see your current team, pending invites, and quick actions all in one place." },
             ].map(({ q, a }) => (
               <div className="faq-item" key={q}>
                 <button className="faq-q" onClick={toggleFaq}>
@@ -249,22 +231,22 @@ export default function Home() {
         <div className="cta-left">
           <div className="cta-overline">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="var(--red)"><circle cx="12" cy="12" r="10" /></svg>
-            Limited Spots Available
+            Team Formation Open
           </div>
-          <h2 className="cta-title">Ready to build<br />something great?</h2>
-          <p className="cta-sub">Registration takes under 2 minutes. Join 825+ students already signed up.</p>
+          <h2 className="cta-title">Ready to build<br />your team?</h2>
+          <p className="cta-sub">Registration takes under a minute. Create or join a team and start collaborating.</p>
         </div>
         <div className="cta-right">
           <Link href="/register" className="btn-large">
-            Register Now
+            Get Started
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </Link>
-          <Link href="/status" className="btn-outline">
-            Check Status
+          <Link href="/team/browse" className="btn-outline">
+            Browse Teams
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
             </svg>
           </Link>
         </div>
@@ -275,6 +257,7 @@ export default function Home() {
         <span className="footer-brand">© 2026 Idea Lab — Don Bosco Institute of Technology</span>
         <div className="footer-links">
           <Link href="/register">Register</Link>
+          <Link href="/team/browse">Teams</Link>
           <Link href="/status">Status</Link>
         </div>
       </footer>

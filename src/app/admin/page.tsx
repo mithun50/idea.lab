@@ -3,24 +3,26 @@
 import { useState, useEffect, useCallback } from "react";
 import { db, auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch, setDoc } from "firebase/firestore";
-import { generateTeams, StudentPair } from "@/lib/matchingAlgorithm";
+import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch, setDoc, where, getCountFromServer } from "firebase/firestore";
 import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
-import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, Play, AlertTriangle, ShieldAlert, KeyRound, Eraser } from "lucide-react";
+import CSVUploader from "@/components/CSVUploader";
+import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet } from "lucide-react";
 
 interface Student {
     name: string;
     usn: string;
     phone: string;
+    email: string;
     branch: string;
     section: string;
-    partnerUSN: string;
-    pairStatus: string;
     teamId: string | null;
+    teamRole: string | null;
+    partnerUSN?: string;
+    pairStatus?: string;
 }
 
-type TabType = "dashboard" | "registrations" | "pairs" | "teams" | "admins" | "settings";
+type TabType = "dashboard" | "students" | "registrations" | "teams" | "admins" | "settings";
 
 export default function AdminPage() {
     const [user, setUser] = useState<User | null>(null);
@@ -29,12 +31,10 @@ export default function AdminPage() {
     const [password, setPassword] = useState("");
     const [loginError, setLoginError] = useState("");
     const [loginLoading, setLoginLoading] = useState(false);
-    
+
     const [activeTab, setActiveTab] = useState<TabType>("dashboard");
     const [students, setStudents] = useState<Student[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
-    const [matchingInProgress, setMatchingInProgress] = useState(false);
-    const [matchingResult, setMatchingResult] = useState<string | null>(null);
 
     // Reset Database States
     const [showResetModal, setShowResetModal] = useState(false);
@@ -50,7 +50,13 @@ export default function AdminPage() {
 
     // Settings States
     const [registrationsOpen, setRegistrationsOpen] = useState(true);
+    const [teamFormationOpen, setTeamFormationOpen] = useState(true);
     const [configLoading, setConfigLoading] = useState(false);
+
+    // New stats
+    const [csvStudentCount, setCsvStudentCount] = useState(0);
+    const [teamsForming, setTeamsForming] = useState(0);
+    const [teamsFull, setTeamsFull] = useState(0);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -77,40 +83,76 @@ export default function AdminPage() {
             if (!docSnap.empty) {
                 const data = docSnap.docs[0].data();
                 setRegistrationsOpen(data.registrationsOpen ?? true);
+                setTeamFormationOpen(data.teamFormationOpen ?? true);
             }
         } catch (error) {
             console.error("Error fetching config:", error);
         }
     }, []);
 
+    const fetchTeamStats = useCallback(async () => {
+        try {
+            const studentsSnap = await getDocs(collection(db, "students"));
+            setCsvStudentCount(studentsSnap.size);
+
+            const teamsSnap = await getDocs(collection(db, "teams"));
+            let forming = 0, full = 0;
+            teamsSnap.forEach(d => {
+                const status = d.data().status;
+                if (status === "forming") forming++;
+                else if (status === "full" || status === "locked") full++;
+            });
+            setTeamsForming(forming);
+            setTeamsFull(full);
+        } catch (error) {
+            console.error("Error fetching team stats:", error);
+        }
+    }, []);
+
     const fetchStudents = useCallback(async () => {
         setDataLoading(true);
         try {
-            const q = query(collection(db, "registrations"), orderBy("createdAt", "desc"));
+            const q = query(collection(db, "registrations"), orderBy("registeredAt", "desc"));
             const snapshot = await getDocs(q);
             const data: Student[] = [];
             snapshot.forEach((docSnap) => {
                 const d = docSnap.data();
                 data.push({
-                    name: d.name,
-                    usn: d.usn,
-                    phone: d.phone,
-                    branch: d.branch,
-                    section: d.section,
-                    partnerUSN: d.partnerUSN,
-                    pairStatus: d.pairStatus,
-                    teamId: d.teamId || null,
+                    name: d.name, usn: d.usn, phone: d.phone, email: d.email || "",
+                    branch: d.branch, section: d.section,
+                    teamId: d.teamId || null, teamRole: d.teamRole || null,
+                    partnerUSN: d.partnerUSN, pairStatus: d.pairStatus,
                 });
             });
             setStudents(data);
             await fetchAdmins();
             await fetchConfig();
-        } catch (error) {
-            console.error("Error fetching data:", error);
+            await fetchTeamStats();
+        } catch {
+            try {
+                const q2 = query(collection(db, "registrations"), orderBy("createdAt", "desc"));
+                const snapshot = await getDocs(q2);
+                const data: Student[] = [];
+                snapshot.forEach((docSnap) => {
+                    const d = docSnap.data();
+                    data.push({
+                        name: d.name, usn: d.usn, phone: d.phone, email: d.email || "",
+                        branch: d.branch, section: d.section,
+                        teamId: d.teamId || null, teamRole: d.teamRole || null,
+                        partnerUSN: d.partnerUSN, pairStatus: d.pairStatus,
+                    });
+                });
+                setStudents(data);
+                await fetchAdmins();
+                await fetchConfig();
+                await fetchTeamStats();
+            } catch (error2) {
+                console.error("Error fetching data:", error2);
+            }
         } finally {
             setDataLoading(false);
         }
-    }, [fetchAdmins, fetchConfig]);
+    }, [fetchAdmins, fetchConfig, fetchTeamStats]);
 
     useEffect(() => {
         if (user) fetchStudents();
@@ -146,34 +188,38 @@ export default function AdminPage() {
         setResetError("");
 
         try {
-            // 1. Re-authenticate
             const credential = EmailAuthProvider.credential(user.email, resetPassword);
             await reauthenticateWithCredential(user, credential);
 
-            // 2. Perform deletion in batches
-            const q = query(collection(db, "registrations"));
-            const snapshot = await getDocs(q);
-            
-            if (snapshot.empty) {
-                alert("Database is already empty.");
-                setShowResetModal(false);
-                return;
+            const regSnap = await getDocs(collection(db, "registrations"));
+            if (!regSnap.empty) {
+                const batch = writeBatch(db);
+                regSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+                await batch.commit();
             }
 
-            const batch = writeBatch(db);
-            snapshot.forEach((docSnap) => {
-                batch.delete(docSnap.ref);
-            });
-            await batch.commit();
+            const teamsSnap = await getDocs(collection(db, "teams"));
+            if (!teamsSnap.empty) {
+                const batch = writeBatch(db);
+                teamsSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+                await batch.commit();
+            }
 
-            alert("✅ Database has been successfully reset.");
+            const invitesSnap = await getDocs(collection(db, "invites"));
+            if (!invitesSnap.empty) {
+                const batch = writeBatch(db);
+                invitesSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+                await batch.commit();
+            }
+
+            alert("Database has been successfully reset.");
             setShowResetModal(false);
             setResetPassword("");
             setResetPhrase("");
             await fetchStudents();
-        } catch (error: any) {
-            console.error("Reset error:", error);
-            setResetError(error.message || "Failed to reset database. Check your password.");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Failed to reset database.";
+            setResetError(msg);
         } finally {
             setResetLoading(false);
         }
@@ -185,27 +231,25 @@ export default function AdminPage() {
         setAdminActionLoading(true);
         try {
             const id = newAdminEmail.trim().toLowerCase().replace(/[@.]/g, "_");
-            const { setDoc } = await import("firebase/firestore");
             await setDoc(doc(db, "admins", id), { email: newAdminEmail.trim().toLowerCase() });
             setNewAdminEmail("");
             await fetchAdmins();
-        } catch (error) {
-            console.error("Error adding admin:", error);
+        } catch {
             alert("Failed to add admin.");
         } finally {
             setAdminActionLoading(false);
         }
     };
 
-    const handleRemoveAdmin = async (email: string) => {
-        if (!confirm(`Are you sure you want to remove ${email} as an admin?`)) return;
+    const handleRemoveAdmin = async (adminEmail: string) => {
+        if (!confirm(`Remove ${adminEmail} as admin?`)) return;
         setAdminActionLoading(true);
         try {
-            const id = email.replace(/[@.]/g, "_");
+            const id = adminEmail.replace(/[@.]/g, "_");
             await deleteDoc(doc(db, "admins", id));
             await fetchAdmins();
-        } catch (error) {
-            console.error("Error removing admin:", error);
+        } catch {
+            console.error("Error removing admin");
         } finally {
             setAdminActionLoading(false);
         }
@@ -214,64 +258,28 @@ export default function AdminPage() {
     const toggleRegistrations = async () => {
         setConfigLoading(true);
         try {
-            const { setDoc } = await import("firebase/firestore");
             await setDoc(doc(db, "config", "global_config"), { registrationsOpen: !registrationsOpen }, { merge: true });
             setRegistrationsOpen(!registrationsOpen);
-        } catch (error) {
-            console.error("Error updating config:", error);
+        } catch {
+            console.error("Error updating config");
         } finally {
             setConfigLoading(false);
         }
     };
 
-    const runMatching = async () => {
-        if (!confirm("Are you sure you want to run the team matching algorithm? This will assign teams to all confirmed pairs.")) return;
-        setMatchingInProgress(true);
-        setMatchingResult(null);
-
+    const toggleTeamFormation = async () => {
+        setConfigLoading(true);
         try {
-            const confirmedStudents = students.filter((s) => s.pairStatus === "confirmed");
-            const processedUSNs = new Set<string>();
-            const pairs: StudentPair[] = [];
-
-            for (const student of confirmedStudents) {
-                if (!processedUSNs.has(student.usn) && !processedUSNs.has(student.partnerUSN)) {
-                    pairs.push({ usn1: student.usn, usn2: student.partnerUSN, branch: student.branch });
-                    processedUSNs.add(student.usn);
-                    processedUSNs.add(student.partnerUSN);
-                }
-            }
-
-            if (pairs.length === 0) {
-                setMatchingResult("No confirmed pairs found to match.");
-                return;
-            }
-
-            const teams = generateTeams(pairs);
-            const updatePromises: Promise<void>[] = [];
-            
-            for (const team of teams) {
-                for (const memberUSN of team.members) {
-                    updatePromises.push(updateDoc(doc(db, "registrations", memberUSN), { teamId: team.teamId }));
-                }
-            }
-            await Promise.all(updatePromises);
-
-            setMatchingResult(`✅ Successfully formed ${teams.length} teams from ${pairs.length} pairs!`);
-            await fetchStudents();
-        } catch (error) {
-            console.error("Matching error:", error);
-            setMatchingResult("❌ Error running matching algorithm. Check console.");
+            await setDoc(doc(db, "config", "global_config"), { teamFormationOpen: !teamFormationOpen }, { merge: true });
+            setTeamFormationOpen(!teamFormationOpen);
+        } catch {
+            console.error("Error updating config");
         } finally {
-            setMatchingInProgress(false);
+            setConfigLoading(false);
         }
     };
 
     const totalRegistrations = students.length;
-    const confirmedPairs = Math.floor(students.filter((s) => s.pairStatus === "confirmed").length / 2);
-    const pendingRegistrations = students.filter((s) => s.pairStatus === "pending").length;
-    const teamsFormed = new Set(students.filter((s) => s.teamId).map((s) => s.teamId)).size;
-
     const branchStats: Record<string, number> = {};
     students.forEach((s) => { branchStats[s.branch] = (branchStats[s.branch] || 0) + 1; });
     const maxBranchCount = Math.max(...Object.values(branchStats), 1);
@@ -281,36 +289,45 @@ export default function AdminPage() {
         "AI&DS": "#10b981", ISE: "#ef4444", ECE: "#8b5cf6", EEE: "#ec4899",
     };
 
+    // ─── Loading ───
     if (authLoading) {
-        return <main className="min-h-screen flex items-center justify-center"><div className="spinner" style={{ width: 40, height: 40 }} /></main>;
+        return (
+            <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--paper)" }}>
+                <div className="spinner" style={{ width: 40, height: 40 }} />
+            </main>
+        );
     }
 
+    // ─── Login ───
     if (!user) {
         return (
-            <main className="min-h-screen flex items-center justify-center px-4 bg-paper bg-[radial-gradient(rgba(13,13,13,0.03)_1px,transparent_1px)] [background-size:24px_24px]">
-                <div className="w-full max-w-md fade-in-up">
-                    <div className="text-center mb-10">
-                        <div className="w-20 h-20 bg-ink rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-                            <Lightbulb className="w-10 h-10 text-paper" />
+            <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "var(--paper)" }}>
+                <div style={{ width: "100%", maxWidth: "420px" }} className="fade-in-up">
+                    <div style={{ textAlign: "center", marginBottom: "40px" }}>
+                        <div style={{ width: 72, height: 72, background: "var(--ink)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+                            <Lightbulb style={{ width: 36, height: 36, color: "var(--paper)" }} />
                         </div>
-                        <h1 className="text-5xl font-black mb-2 brand-font leading-none tracking-tight">ADMIN PANEL</h1>
-                        <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Secure Access Required</p>
+                        <h1 style={{ fontFamily: "var(--bebas)", fontSize: "clamp(36px, 6vw, 48px)", letterSpacing: "0.02em", lineHeight: 1, marginBottom: "8px" }}>ADMIN PANEL</h1>
+                        <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted)" }}>Secure Access Required</p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="glass-card !p-10 space-y-6 shadow-2xl">
-                        <div className="space-y-4">
+                    <form onSubmit={handleLogin} className="glass-card" style={{ padding: "clamp(24px, 4vw, 40px)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "24px" }}>
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Admin Email</label>
+                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>Admin Email</label>
                                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@dbit.in" className="input-field" required />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Password</label>
+                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>Password</label>
                                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field" required />
                             </div>
                         </div>
-                        {loginError && <p className="text-red-600 text-[11px] font-bold uppercase tracking-wider bg-red-50 border border-red-200 p-4">{loginError}</p>}
-                        
-                        <button type="submit" disabled={loginLoading} className="btn-primary w-full !py-5 text-sm">
+                        {loginError && (
+                            <div style={{ padding: "12px 14px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", background: "rgba(232, 52, 26, 0.08)", color: "var(--red)", border: "1.5px solid var(--red)", marginBottom: "24px" }}>
+                                {loginError}
+                            </div>
+                        )}
+                        <button type="submit" disabled={loginLoading} className="btn-primary w-full" style={{ padding: "18px" }}>
                             {loginLoading ? <div className="spinner" /> : "Authorize & Enter"}
                         </button>
                     </form>
@@ -319,81 +336,118 @@ export default function AdminPage() {
         );
     }
 
+    // ─── Navigation items ───
     const navigationItems = [
-        { id: "dashboard", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
-        { id: "registrations", label: "Registrations", icon: <Users className="w-4 h-4" /> },
-        { id: "pairs", label: "Pairs", icon: <UsersRound className="w-4 h-4" /> },
-        { id: "teams", label: "Teams", icon: <Trophy className="w-4 h-4" /> },
-        { id: "admins", label: "Admins", icon: <UserPlus className="w-4 h-4" /> },
-        { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> }
+        { id: "dashboard", label: "Overview", icon: <LayoutDashboard style={{ width: 22, height: 22 }} /> },
+        { id: "students", label: "Students", icon: <Database style={{ width: 22, height: 22 }} /> },
+        { id: "registrations", label: "Registrations", icon: <Users style={{ width: 22, height: 22 }} /> },
+        { id: "teams", label: "Teams", icon: <Trophy style={{ width: 22, height: 22 }} /> },
+        { id: "admins", label: "Admins", icon: <UserPlus style={{ width: 22, height: 22 }} /> },
+        { id: "settings", label: "Settings", icon: <Settings style={{ width: 22, height: 22 }} /> }
     ];
 
+    // ─── Main Panel ───
     return (
-        <main className="min-h-screen flex bg-paper text-ink">
-            
-            {/* Sidebar */}
-            <aside className="w-64 border-r-[1.5px] border-ink bg-paper2 flex flex-col hidden md:flex sticky top-0 h-screen">
-                <div className="flex-1 flex flex-col">
-                    <div className="p-8 border-b-[1.5px] border-ink bg-paper">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center">
-                                <Lightbulb className="w-4 h-4 text-paper" />
-                            </div>
-                            <span className="font-black text-xl tracking-tight brand-font">IDEA LAB</span>
-                        </div>
-                    </div>
+        <main className="admin-layout">
 
-                    <nav className="p-4 space-y-1">
-                        {navigationItems.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => setActiveTab(item.id as TabType)}
-                                className={`w-full flex items-center gap-4 px-5 py-4 transition-all text-[11px] font-bold uppercase tracking-widest
-                                    ${activeTab === item.id 
-                                        ? 'bg-ink text-paper border-l-4 border-red' 
-                                        : 'text-muted hover:text-ink hover:bg-paper'}
-                                `}
-                            >
-                                {item.icon} {item.label}
-                            </button>
-                        ))}
-                    </nav>
+            {/* ── Sidebar (desktop + tablet icon-only) ── */}
+            <aside className="admin-sidebar">
+                <div className="admin-sidebar-header" style={{ padding: "24px", borderBottom: "1.5px solid var(--ink)", background: "var(--paper)", display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Lightbulb style={{ width: 16, height: 16, color: "var(--paper)" }} />
+                    </div>
+                    <span className="admin-sidebar-logo-text" style={{ fontFamily: "var(--bebas)", fontSize: "20px", letterSpacing: "0.04em" }}>IDEA LAB</span>
                 </div>
 
-                <div className="p-6 border-t-[1.5px] border-ink bg-paper2 mt-auto">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-8 h-8 rounded-full bg-paper border border-line flex items-center justify-center overflow-hidden">
-                            <span className="text-[10px] font-bold">{user.email?.charAt(0).toUpperCase()}</span>
+                <div style={{ padding: "12px 8px", display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
+                    {navigationItems.map(item => (
+                        <button
+                            key={item.id}
+                            className="admin-sidebar-nav-btn"
+                            onClick={() => setActiveTab(item.id as TabType)}
+                            title={item.label}
+                            style={{
+                                width: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "14px",
+                                padding: "12px 16px",
+                                border: "none",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.1em",
+                                fontFamily: "var(--body)",
+                                transition: "all 0.15s",
+                                background: activeTab === item.id ? "var(--ink)" : "transparent",
+                                color: activeTab === item.id ? "var(--paper)" : "var(--muted)",
+                                borderLeft: activeTab === item.id ? "3px solid var(--red)" : "3px solid transparent",
+                            }}
+                        >
+                            {item.icon}
+                            <span className="admin-sidebar-label">{item.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="admin-sidebar-footer" style={{ padding: "16px", borderTop: "1.5px solid var(--ink)" }}>
+                    <div className="admin-sidebar-user" style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--paper)", border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", fontWeight: 700 }}>{user.email?.charAt(0).toUpperCase()}</span>
                         </div>
-                        <div className="w-0 flex-1 overflow-hidden">
-                            <p className="text-[10px] font-bold truncate text-muted">{user.email}</p>
-                        </div>
+                        <p className="admin-sidebar-email" style={{ fontSize: "10px", fontWeight: 700, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{user.email}</p>
                     </div>
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 border border-ink text-ink hover:bg-red hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest">
-                        <LogOut className="w-4 h-4" /> Sign Out
+                    <button
+                        className="admin-sidebar-signout"
+                        onClick={handleLogout}
+                        title="Sign Out"
+                        style={{
+                            width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                            padding: "10px 14px", border: "1px solid var(--ink)", background: "transparent",
+                            color: "var(--ink)", cursor: "pointer", fontSize: "10px", fontWeight: 700,
+                            textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "var(--body)",
+                            transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red)"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "var(--red)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink)"; e.currentTarget.style.borderColor = "var(--ink)"; }}
+                    >
+                        <LogOut style={{ width: 16, height: 16, flexShrink: 0 }} />
+                        <span className="admin-sidebar-signout-text">Sign Out</span>
                     </button>
                 </div>
             </aside>
 
-            {/* Mobile Topbar */}
-            <div className="md:hidden fixed top-0 w-full z-50 border-b-[1.5px] border-ink bg-paper px-4 py-4 flex flex-col gap-4">
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center">
-                            <Lightbulb className="w-4 h-4 text-paper" />
+            {/* ── Mobile Topbar ── */}
+            <div className="admin-mobile-topbar">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Lightbulb style={{ width: 14, height: 14, color: "var(--paper)" }} />
                         </div>
-                        <span className="font-black text-lg brand-font">IDEA LAB</span>
+                        <span style={{ fontFamily: "var(--bebas)", fontSize: "16px" }}>IDEA LAB</span>
                     </div>
-                    <button onClick={handleLogout} className="text-[10px] font-bold uppercase text-red-600">Sign Out</button>
+                    <button onClick={handleLogout} style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", color: "var(--red)", background: "none", border: "none", cursor: "pointer", letterSpacing: "0.08em" }}>Sign Out</button>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                   {navigationItems.map(item => (
+                <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
+                    {navigationItems.map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as TabType)}
-                            className={`px-4 py-2 whitespace-nowrap text-[10px] font-bold uppercase tracking-widest border
-                                ${activeTab === item.id ? 'bg-ink text-paper border-ink' : 'text-muted border-line'}
-                            `}
+                            style={{
+                                padding: "7px 14px",
+                                whiteSpace: "nowrap",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.06em",
+                                border: "1px solid",
+                                cursor: "pointer",
+                                fontFamily: "var(--body)",
+                                borderColor: activeTab === item.id ? "var(--ink)" : "var(--line)",
+                                background: activeTab === item.id ? "var(--ink)" : "transparent",
+                                color: activeTab === item.id ? "var(--paper)" : "var(--muted)",
+                            }}
                         >
                             {item.label}
                         </button>
@@ -401,181 +455,151 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 p-6 md:p-12 pt-40 md:pt-12 w-full max-w-[100vw] overflow-y-auto">
-                
+            {/* ── Main Content ── */}
+            <div className="admin-content">
+
                 {dataLoading ? (
-                    <div className="flex items-center justify-center h-[60vh]">
-                        <div className="text-center">
-                            <div className="spinner mx-auto mb-4 border-ink" style={{ width: 40, height: 40 }} />
-                            <p className="text-muted text-[11px] font-bold uppercase tracking-widest">Crunching Data...</p>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+                        <div style={{ textAlign: "center" }}>
+                            <div className="spinner" style={{ width: 40, height: 40, margin: "0 auto 16px", borderColor: "var(--line)", borderTopColor: "var(--ink)" }} />
+                            <p className="admin-section-sub">Loading Data...</p>
                         </div>
                     </div>
                 ) : (
-                    <div className="fade-in-up space-y-12 max-w-6xl mx-auto">
-                        
+                    <div className="admin-inner fade-in-up">
+
+                        {/* ── Dashboard Tab ── */}
                         {activeTab === "dashboard" && (
                             <>
                                 <header>
-                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">OVERVIEW</h1>
-                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Real-time Event Metrics</p>
+                                    <h1 className="admin-section-title">OVERVIEW</h1>
+                                    <p className="admin-section-sub">Real-time Event Metrics</p>
                                 </header>
-                                
-                                <AdminStats totalRegistrations={totalRegistrations} confirmedPairs={confirmedPairs} pendingRegistrations={pendingRegistrations} teamsFormed={teamsFormed} />
 
-                                <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-                                    <div className="glass-card xl:col-span-3 !p-10 border-[1.5px] border-ink">
-                                        <h2 className="font-black text-2xl mb-8 brand-font flex items-center gap-3 uppercase tracking-wider"><LayoutDashboard className="w-6 h-6 text-red"/> Branch Distribution</h2>
-                                        <div className="space-y-6">
-                                            {Object.entries(branchStats).sort(([, a], [, b]) => b - a).map(([branch, count]) => (
-                                                <div key={branch} className="space-y-2">
-                                                    <div className="flex justify-between items-end">
-                                                        <span className="text-[11px] font-black uppercase tracking-widest text-ink">{branch}</span>
-                                                        <span className="text-[11px] font-black uppercase tracking-widest text-muted">{count} ENROLLED</span>
-                                                    </div>
-                                                    <div className="h-6 border-[1.5px] border-ink bg-paper2 relative">
-                                                        <div
-                                                            className="absolute top-0 left-0 h-full transition-all duration-1000 ease-out"
-                                                            style={{
-                                                                width: `${(count / maxBranchCount) * 100}%`,
-                                                                backgroundColor: branchColors[branch] || "var(--ink)",
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                <AdminStats
+                                    totalRegistrations={totalRegistrations}
+                                    confirmedPairs={0}
+                                    pendingRegistrations={0}
+                                    teamsFormed={teamsForming + teamsFull}
+                                    csvStudentCount={csvStudentCount}
+                                    teamsForming={teamsForming}
+                                    teamsFull={teamsFull}
+                                />
 
-                                    <div className="glass-card xl:col-span-2 !p-10 border-[1.5px] border-ink bg-paper2 flex flex-col">
-                                        <div>
-                                            <h2 className="font-black text-2xl mb-4 brand-font flex items-center gap-3 uppercase tracking-wider"><Trophy className="w-6 h-6 text-red"/> Matchmaker</h2>
-                                            <p className="text-muted text-xs font-bold uppercase leading-relaxed tracking-widest mb-8">
-                                                Aggregate confirmed pairs into cross-branch units.
-                                            </p>
-                                            <div className="space-y-4 mb-10">
-                                                <div className="flex justify-between items-center p-4 border border-ink bg-paper">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Ready Pairs</span>
-                                                    <span className="font-black text-xl brand-font">{confirmedPairs}</span>
+                                <div className="admin-card">
+                                    <h2 style={{ fontFamily: "var(--bebas)", fontSize: "clamp(20px, 3vw, 24px)", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+                                        <LayoutDashboard style={{ width: 22, height: 22, color: "var(--red)" }} /> Branch Distribution
+                                    </h2>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                                        {Object.entries(branchStats).sort(([, a], [, b]) => b - a).map(([branch, count]) => (
+                                            <div key={branch}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                                                    <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>{branch}</span>
+                                                    <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>{count}</span>
                                                 </div>
-                                                <div className="flex justify-between items-center p-4 border border-ink bg-paper">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Est. Teams</span>
-                                                    <span className="font-black text-xl brand-font">{Math.floor(confirmedPairs / 3)}</span>
+                                                <div style={{ height: "20px", border: "1.5px solid var(--ink)", background: "var(--paper2)", position: "relative" }}>
+                                                    <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${(count / maxBranchCount) * 100}%`, background: branchColors[branch] || "var(--ink)", transition: "width 1s ease" }} />
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        <div className="space-y-4 mt-auto">
-                                            <button onClick={runMatching} disabled={matchingInProgress || confirmedPairs < 3} className="btn-primary w-full !py-5 shadow-xl">
-                                                {matchingInProgress ? <div className="spinner" /> : <><Play className="w-4 h-4 fill-current" /> Execute Matching</>}
-                                            </button>
-                                            {matchingResult && (
-                                                <div className={`text-[10px] font-bold uppercase tracking-[0.12em] p-4 border border-ink text-center leading-relaxed ${matchingResult.startsWith("✅") ? "bg-[#10b981] text-white" : "bg-red text-white"}`}>
-                                                    {matchingResult}
-                                                </div>
-                                            )}
-                                        </div>
+                                        ))}
                                     </div>
                                 </div>
                             </>
                         )}
 
-                        {activeTab === "registrations" && (
-                            <div className="fade-in-up space-y-8">
-                                <header className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
-                                     <div>
-                                        <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">REGISTRATIONS</h1>
-                                        <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Full Participant Directory</p>
-                                     </div>
-                                     <button onClick={fetchStudents} className="btn-secondary !text-[10px] !font-black !px-6">↻ RELOAD DATA</button>
-                                </header>
-                                <div className="glass-card shadow-xl !p-1">
-                                    <StudentTable students={students} />
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === "pairs" && (
-                            <div className="fade-in-up space-y-8">
-                                <div>
-                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight text-ink">PAIRS</h1>
-                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Confirmed Duos Ready for Matching</p>
-                                </div>
-                                <div className="glass-card shadow-xl !p-1">
-                                     <StudentTable students={students.filter(s => s.pairStatus === "confirmed")} />
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === "teams" && (
-                            <div className="fade-in-up space-y-8">
-                                <div>
-                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight text-ink">TEAMS</h1>
-                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Generated Cross-Branch Collaborations</p>
-                                </div>
-                                <div className="glass-card shadow-xl !p-1">
-                                     <StudentTable students={students.filter(s => s.teamId !== null)} />
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === "admins" && (
-                            <div className="fade-in-up space-y-10">
+                        {/* ── Students Tab ── */}
+                        {activeTab === "students" && (
+                            <>
                                 <header>
-                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">ADMINS</h1>
-                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Manage Portal Permissions</p>
+                                    <h1 className="admin-section-title">STUDENTS</h1>
+                                    <p className="admin-section-sub">CSV Master Data — {csvStudentCount} Records</p>
                                 </header>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                    <div className="glass-card !p-10 border-[1.5px] border-ink flex flex-col">
-                                        <h3 className="font-black text-2xl mb-8 brand-font uppercase tracking-wider flex items-center gap-3">
-                                            <UserPlus className="w-6 h-6 text-red" /> Authorize Admin
+                                <div className="admin-card">
+                                    <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <Database style={{ width: 20, height: 20, color: "var(--red)" }} /> Upload Student CSV
+                                    </h3>
+                                    <CSVUploader onUploadComplete={fetchStudents} />
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── Registrations Tab ── */}
+                        {activeTab === "registrations" && (
+                            <>
+                                <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: "16px" }}>
+                                    <div>
+                                        <h1 className="admin-section-title">REGISTRATIONS</h1>
+                                        <p className="admin-section-sub">Full Participant Directory</p>
+                                    </div>
+                                    <button onClick={fetchStudents} className="btn-secondary" style={{ fontSize: "10px", fontWeight: 800, padding: "10px 24px" }}>
+                                        RELOAD DATA
+                                    </button>
+                                </header>
+                                <div className="admin-card" style={{ padding: "4px" }}>
+                                    <StudentTable students={students} showTeamColumns={true} showLegacyColumns={true} />
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── Teams Tab ── */}
+                        {activeTab === "teams" && (
+                            <>
+                                <header>
+                                    <h1 className="admin-section-title">TEAMS</h1>
+                                    <p className="admin-section-sub">
+                                        {teamsForming} Forming · {teamsFull} Full
+                                    </p>
+                                </header>
+                                <div className="admin-card" style={{ padding: "4px" }}>
+                                    <StudentTable students={students.filter(s => s.teamId !== null)} showTeamColumns={true} />
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── Admins Tab ── */}
+                        {activeTab === "admins" && (
+                            <>
+                                <header>
+                                    <h1 className="admin-section-title">ADMINS</h1>
+                                    <p className="admin-section-sub">Manage Portal Permissions</p>
+                                </header>
+
+                                <div className="admin-grid-2">
+                                    <div className="admin-card">
+                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px" }}>
+                                            <UserPlus style={{ width: 20, height: 20, color: "var(--red)" }} /> Authorize Admin
                                         </h3>
-                                        <form onSubmit={handleAddAdmin} className="space-y-6">
+                                        <form onSubmit={handleAddAdmin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                                             <div>
-                                                <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Email Address</label>
-                                                <input 
-                                                    type="email" 
-                                                    value={newAdminEmail}
-                                                    onChange={(e) => setNewAdminEmail(e.target.value)}
-                                                    placeholder="admin@dbit.in"
-                                                    className="input-field"
-                                                    required
-                                                />
+                                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "10px" }}>Email Address</label>
+                                                <input type="email" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} placeholder="admin@dbit.in" className="input-field" required />
                                             </div>
-                                            <button 
-                                                type="submit" 
-                                                disabled={adminActionLoading || !newAdminEmail}
-                                                className="btn-primary w-full !py-4"
-                                            >
+                                            <button type="submit" disabled={adminActionLoading || !newAdminEmail} className="btn-primary w-full" style={{ padding: "14px" }}>
                                                 {adminActionLoading ? <div className="spinner" /> : "GRANT ACCESS"}
                                             </button>
                                         </form>
                                     </div>
 
-                                    <div className="glass-card !p-10 border-[1.5px] border-ink bg-paper2">
-                                        <h3 className="font-black text-2xl mb-8 brand-font uppercase tracking-wider flex items-center gap-3">
-                                            <Users className="w-6 h-6 text-red" /> Authorized Staff
+                                    <div className="admin-card" style={{ background: "var(--paper2)" }}>
+                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px" }}>
+                                            <Users style={{ width: 20, height: 20, color: "var(--red)" }} /> Authorized Staff
                                         </h3>
-                                        <div className="space-y-3">
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                             {admins.length === 0 ? (
-                                                <div className="text-center py-8 border-[1.5px] border-dashed border-ink/20">
-                                                    <p className="text-muted text-[10px] font-bold uppercase tracking-widest">Root access only.</p>
+                                                <div style={{ padding: "24px", textAlign: "center", border: "1.5px dashed var(--line)" }}>
+                                                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Root access only.</p>
                                                 </div>
                                             ) : (
-                                                admins.map((email) => (
-                                                    <div key={email} className="flex items-center justify-between p-4 bg-paper border-[1.5px] border-ink">
-                                                        <span className="text-[11px] font-black tracking-tight text-ink">{email}</span>
-                                                        {email !== user?.email && (
-                                                            <button 
-                                                                onClick={() => handleRemoveAdmin(email)}
-                                                                className="text-red font-bold text-[10px] uppercase hover:underline"
-                                                            >
+                                                admins.map((adminEmail) => (
+                                                    <div key={adminEmail} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "var(--paper)", border: "1.5px solid var(--ink)", gap: "12px" }}>
+                                                        <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{adminEmail}</span>
+                                                        {adminEmail !== user?.email ? (
+                                                            <button onClick={() => handleRemoveAdmin(adminEmail)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontWeight: 700, fontSize: "10px", textTransform: "uppercase", flexShrink: 0 }}>
                                                                 REVOKE
                                                             </button>
-                                                        )}
-                                                        {email === user?.email && (
-                                                            <span className="text-[9px] font-black uppercase tracking-[0.2em] bg-ink text-paper px-2 py-0.5">YOU</span>
+                                                        ) : (
+                                                            <span style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2em", background: "var(--ink)", color: "var(--paper)", padding: "2px 8px", flexShrink: 0 }}>YOU</span>
                                                         )}
                                                     </div>
                                                 ))
@@ -583,118 +607,129 @@ export default function AdminPage() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </>
                         )}
-                        
+
+                        {/* ── Settings Tab ── */}
                         {activeTab === "settings" && (
-                             <div className="fade-in-up space-y-10">
+                            <>
                                 <header>
-                                    <h1 className="text-6xl font-black mb-2 brand-font leading-none tracking-tight">SETTINGS</h1>
-                                    <p className="text-muted text-xs font-bold uppercase tracking-[0.2em]">Global Configurations</p>
+                                    <h1 className="admin-section-title">SETTINGS</h1>
+                                    <p className="admin-section-sub">Global Configurations</p>
                                 </header>
-                                
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                    <div className="glass-card !p-10 border-[1.5px] border-ink">
-                                        <Settings className="w-10 h-10 text-muted mb-6" />
-                                        <h3 className="font-black text-2xl mb-2 brand-font uppercase tracking-wider">Gate Control</h3>
-                                        <p className="text-muted text-xs font-bold uppercase tracking-widest mb-10 leading-relaxed">
-                                            Portal is currently 
-                                            <span className={`ml-2 px-2 py-0.5 ${registrationsOpen ? "bg-[#10b981] text-white" : "bg-red text-white"}`}>
+
+                                <div className="admin-grid-2">
+                                    {/* Registration Gate */}
+                                    <div className="admin-card">
+                                        <Settings style={{ width: 36, height: 36, color: "var(--muted)", marginBottom: "20px" }} />
+                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "8px" }}>Registration Gate</h3>
+                                        <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", marginBottom: "32px", lineHeight: 1.8 }}>
+                                            Portal is currently{" "}
+                                            <span style={{ padding: "2px 8px", background: registrationsOpen ? "#10b981" : "var(--red)", color: "#fff" }}>
                                                 {registrationsOpen ? "OPEN" : "LOCKED"}
                                             </span>
                                         </p>
-                                        <button 
-                                            onClick={toggleRegistrations}
-                                            disabled={configLoading}
-                                            className="btn-primary w-full !py-4"
-                                        >
-                                            {configLoading ? <div className="spinner" /> : (registrationsOpen ? "LOCK PORTAL" : "OPEN PORTAL")}
+                                        <button onClick={toggleRegistrations} disabled={configLoading} className="btn-primary w-full" style={{ padding: "14px" }}>
+                                            {configLoading ? <div className="spinner" /> : (registrationsOpen ? "LOCK REGISTRATIONS" : "OPEN REGISTRATIONS")}
                                         </button>
                                     </div>
 
-                                    <div className="glass-card !p-10 border-[1.5px] border-red bg-red/5">
-                                        <ShieldAlert className="w-10 h-10 text-red mb-6" />
-                                        <h3 className="font-black text-2xl mb-2 brand-font uppercase tracking-wider text-red">Danger Operations</h3>
-                                        <p className="text-red text-xs font-bold uppercase tracking-widest mb-10 leading-relaxed">
-                                            Wipe all student and team data. Proceed with extreme caution.
+                                    {/* Team Formation Gate */}
+                                    <div className="admin-card">
+                                        <UsersRound style={{ width: 36, height: 36, color: "var(--muted)", marginBottom: "20px" }} />
+                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "8px" }}>Team Formation</h3>
+                                        <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", marginBottom: "32px", lineHeight: 1.8 }}>
+                                            Team creation is{" "}
+                                            <span style={{ padding: "2px 8px", background: teamFormationOpen ? "#10b981" : "var(--red)", color: "#fff" }}>
+                                                {teamFormationOpen ? "OPEN" : "LOCKED"}
+                                            </span>
                                         </p>
-                                        <button 
+                                        <button onClick={toggleTeamFormation} disabled={configLoading} className="btn-primary w-full" style={{ padding: "14px" }}>
+                                            {configLoading ? <div className="spinner" /> : (teamFormationOpen ? "LOCK TEAM FORMATION" : "OPEN TEAM FORMATION")}
+                                        </button>
+                                    </div>
+
+                                    {/* Danger Zone */}
+                                    <div className="admin-card" style={{ borderColor: "var(--red)", gridColumn: "1 / -1" }}>
+                                        <ShieldAlert style={{ width: 36, height: 36, color: "var(--red)", marginBottom: "20px" }} />
+                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "8px", color: "var(--red)" }}>Danger Zone</h3>
+                                        <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--red)", marginBottom: "32px", lineHeight: 1.8 }}>
+                                            Wipe all registration, team, and invite data. Proceed with extreme caution.
+                                        </p>
+                                        <button
                                             onClick={() => setShowResetModal(true)}
-                                            className="w-full py-4 border-[1.5px] border-red text-red hover:bg-red hover:text-white transition-all text-[11px] font-black uppercase tracking-[0.2em]"
+                                            style={{
+                                                width: "100%", padding: "14px", border: "1.5px solid var(--red)", background: "transparent",
+                                                color: "var(--red)", cursor: "pointer", fontSize: "11px", fontWeight: 800,
+                                                textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--body)",
+                                                transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red)"; e.currentTarget.style.color = "#fff"; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--red)"; }}
                                         >
-                                            <Eraser className="w-4 h-4" /> RESET DATABASE
+                                            <Eraser style={{ width: 16, height: 16 }} /> RESET DATABASE
                                         </button>
                                     </div>
                                 </div>
-                            </div>
+                            </>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* Reset Database Modal */}
+            {/* ── Reset Modal ── */}
             {showResetModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-ink/90 backdrop-blur-sm fade-in">
-                    <div className="glass-card max-w-md w-full !p-12 border-red shadow-2xl">
-                        <div className="text-center mb-10">
-                            <div className="w-20 h-20 rounded-full bg-red flex items-center justify-center mx-auto mb-6 shadow-xl">
-                                <AlertTriangle className="w-10 h-10 text-white" />
+                <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "rgba(13,13,13,0.9)", backdropFilter: "blur(4px)" }}>
+                    <div className="glass-card" style={{ maxWidth: "420px", width: "100%", padding: "clamp(24px, 4vw, 48px)", borderColor: "var(--red)" }}>
+                        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+                            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                                <AlertTriangle style={{ width: 32, height: 32, color: "#fff" }} />
                             </div>
-                            <h2 className="text-4xl font-black text-ink mb-2 brand-font uppercase">DANGER ZONE</h2>
-                            <p className="text-muted text-[11px] font-bold uppercase tracking-widest leading-relaxed">
-                                Permanently erase all <span className="text-red">registration units</span>.
+                            <h2 style={{ fontFamily: "var(--bebas)", fontSize: "clamp(28px, 4vw, 36px)", lineHeight: 1, marginBottom: "8px" }}>DANGER ZONE</h2>
+                            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>
+                                Permanently erase all <span style={{ color: "var(--red)" }}>data</span>.
                             </p>
                         </div>
 
-                        <form onSubmit={handleResetDatabase} className="space-y-8">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Admin Password</label>
-                                    <input 
-                                        type="password" 
-                                        value={resetPassword} 
-                                        onChange={(e) => setResetPassword(e.target.value)}
-                                        placeholder="REQUIRED"
-                                        className="input-field"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
-                                        Type <span className="text-red font-black italic">reset database</span>
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        value={resetPhrase} 
-                                        onChange={(e) => setResetPhrase(e.target.value)}
-                                        placeholder="CONFIRMATION PHRASE"
-                                        className="input-field"
-                                        required
-                                    />
-                                </div>
+                        <form onSubmit={handleResetDatabase} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                            <div>
+                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>Admin Password</label>
+                                <input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} placeholder="REQUIRED" className="input-field" required />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
+                                    Type <span style={{ color: "var(--red)", fontStyle: "italic" }}>reset database</span>
+                                </label>
+                                <input type="text" value={resetPhrase} onChange={(e) => setResetPhrase(e.target.value)} placeholder="CONFIRMATION PHRASE" className="input-field" required />
                             </div>
 
                             {resetError && (
-                                <p className="text-white text-[10px] font-bold uppercase tracking-wider bg-red p-4 border border-ink">
+                                <div style={{ padding: "12px 14px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", background: "var(--red)", color: "#fff", border: "1px solid var(--ink)" }}>
                                     {resetError}
-                                </p>
+                                </div>
                             )}
 
-                            <div className="flex gap-4">
-                                <button 
-                                    type="button" 
+                            <div style={{ display: "flex", gap: "12px" }}>
+                                <button
+                                    type="button"
                                     onClick={() => { setShowResetModal(false); setResetError(""); setResetPassword(""); setResetPhrase(""); }}
-                                    className="flex-1 btn-secondary text-[10px]"
+                                    className="btn-secondary"
+                                    style={{ flex: 1, padding: "14px" }}
                                 >
                                     ABORT
                                 </button>
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     disabled={resetLoading || resetPhrase !== "reset database" || !resetPassword}
-                                    className="flex-1 py-4 bg-red text-white font-black uppercase tracking-widest text-[11px] hover:bg-ink disabled:opacity-30 transition-all border border-ink"
+                                    style={{
+                                        flex: 1, padding: "14px", background: "var(--red)", color: "#fff",
+                                        fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em",
+                                        fontSize: "11px", border: "1px solid var(--ink)", cursor: "pointer",
+                                        opacity: (resetLoading || resetPhrase !== "reset database" || !resetPassword) ? 0.3 : 1,
+                                        transition: "all 0.15s", fontFamily: "var(--body)",
+                                    }}
                                 >
-                                    {resetLoading ? <div className="spinner border-white" /> : "ERASE DATA"}
+                                    {resetLoading ? <div className="spinner" style={{ borderColor: "rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> : "ERASE DATA"}
                                 </button>
                             </div>
                         </form>

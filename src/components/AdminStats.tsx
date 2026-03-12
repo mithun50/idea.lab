@@ -1,12 +1,15 @@
 "use client";
 
-import { Users, UserCheck, Hourglass, Trophy } from "lucide-react";
+import { Users, Trophy, Database, UsersRound } from "lucide-react";
 
 interface StatsProps {
     totalRegistrations: number;
     confirmedPairs: number;
     pendingRegistrations: number;
     teamsFormed: number;
+    csvStudentCount?: number;
+    teamsForming?: number;
+    teamsFull?: number;
 }
 
 export default function AdminStats({
@@ -14,37 +17,40 @@ export default function AdminStats({
     confirmedPairs,
     pendingRegistrations,
     teamsFormed,
+    csvStudentCount,
+    teamsForming,
+    teamsFull,
 }: StatsProps) {
     const stats = [
         {
             label: "Total Registrations",
             value: totalRegistrations,
-            icon: <Users className="w-6 h-6" />,
+            icon: <Users style={{ width: 24, height: 24 }} />,
         },
         {
-            label: "Confirmed Pairs",
-            value: confirmedPairs,
-            icon: <UserCheck className="w-6 h-6" />,
+            label: "CSV Students",
+            value: csvStudentCount ?? "—",
+            icon: <Database style={{ width: 24, height: 24 }} />,
         },
         {
-            label: "Pending",
-            value: pendingRegistrations,
-            icon: <Hourglass className="w-6 h-6" />,
+            label: "Teams Forming",
+            value: teamsForming ?? confirmedPairs,
+            icon: <UsersRound style={{ width: 24, height: 24 }} />,
         },
         {
-            label: "Teams Formed",
-            value: teamsFormed,
-            icon: <Trophy className="w-6 h-6" />,
+            label: "Teams Full",
+            value: teamsFull ?? teamsFormed,
+            icon: <Trophy style={{ width: 24, height: 24 }} />,
         },
     ];
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="admin-stats-grid">
             {stats.map((stat, i) => (
                 <div
                     key={i}
-                    className="glass-card flex flex-col justify-between"
-                    style={{ padding: "24px", animationDelay: `${i * 0.1}s` }}
+                    className="glass-card"
+                    style={{ padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", animationDelay: `${i * 0.1}s` }}
                 >
                     <div style={{ color: "var(--muted)", marginBottom: "16px" }}>{stat.icon}</div>
                     <div>

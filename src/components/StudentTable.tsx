@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Download } from "lucide-react";
-
-/**
- * StudentTable Component
- * 
- * Displays all registered students in a searchable, sortable table.
- * Features:
- * - Search by USN, name, or branch
- * - Pagination
- * - CSV export of all data
- */
+import { Search, Download, FileSpreadsheet } from "lucide-react";
 
 interface Student {
     name: string;
@@ -19,21 +9,41 @@ interface Student {
     phone: string;
     branch: string;
     section: string;
-    partnerUSN: string;
-    pairStatus: string;
+    email?: string;
     teamId: string | null;
+    teamRole?: string | null;
+    // Legacy fields
+    partnerUSN?: string;
+    pairStatus?: string;
 }
 
 interface StudentTableProps {
     students: Student[];
+    showTeamColumns?: boolean;
+    showLegacyColumns?: boolean;
 }
 
-export default function StudentTable({ students }: StudentTableProps) {
+const thStyle: React.CSSProperties = {
+    textAlign: "left",
+    padding: "16px",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.12em",
+    fontSize: "10px",
+    color: "var(--muted)",
+    whiteSpace: "nowrap",
+};
+
+const tdStyle: React.CSSProperties = {
+    padding: "16px",
+    fontSize: "13px",
+};
+
+export default function StudentTable({ students, showTeamColumns = true, showLegacyColumns = false }: StudentTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 20;
 
-    // Filter students based on search query
     const filteredStudents = useMemo(() => {
         if (!searchQuery) return students;
         const q = searchQuery.toLowerCase();
@@ -43,48 +53,31 @@ export default function StudentTable({ students }: StudentTableProps) {
                 s.name.toLowerCase().includes(q) ||
                 s.branch.toLowerCase().includes(q) ||
                 s.section.toLowerCase().includes(q) ||
-                s.partnerUSN.toLowerCase().includes(q) ||
-                (s.teamId && s.teamId.toLowerCase().includes(q))
+                (s.teamId && s.teamId.toLowerCase().includes(q)) ||
+                (s.email && s.email.toLowerCase().includes(q)) ||
+                (s.partnerUSN && s.partnerUSN.toLowerCase().includes(q))
         );
     }, [students, searchQuery]);
 
-    // Paginate
     const totalPages = Math.ceil(filteredStudents.length / pageSize);
     const paginatedStudents = filteredStudents.slice(
         (currentPage - 1) * pageSize,
         currentPage * pageSize
     );
 
-    // Reset page when search changes
     const handleSearch = (value: string) => {
         setSearchQuery(value);
         setCurrentPage(1);
     };
 
-    /**
-     * Export all student data as CSV.
-     */
     const exportCSV = () => {
-        const headers = [
-            "Name",
-            "USN",
-            "Phone",
-            "Branch",
-            "Section",
-            "Partner USN",
-            "Pair Status",
-            "Team ID",
-        ];
-        const rows = students.map((s) => [
-            s.name,
-            s.usn,
-            s.phone,
-            s.branch,
-            s.section,
-            s.partnerUSN,
-            s.pairStatus,
-            s.teamId || "",
-        ]);
+        const headers = ["Name", "USN", "Email", "Phone", "Branch", "Section", "Team ID", "Team Role"];
+        if (showLegacyColumns) headers.push("Partner USN", "Pair Status");
+        const rows = students.map((s) => {
+            const row = [s.name, s.usn, s.email || "", s.phone, s.branch, s.section, s.teamId || "", s.teamRole || ""];
+            if (showLegacyColumns) row.push(s.partnerUSN || "", s.pairStatus || "");
+            return row;
+        });
 
         const csvContent = [
             headers.join(","),
@@ -96,100 +89,136 @@ export default function StudentTable({ students }: StudentTableProps) {
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `idea-lab-registrations-${new Date().toISOString().split("T")[0]}.csv`;
+        link.download = `idea-lab-data-${new Date().toISOString().split("T")[0]}.csv`;
         link.click();
         URL.revokeObjectURL(link.href);
     };
 
+    const exportXLS = async () => {
+        try {
+            const { exportSingleSheet } = await import("@/lib/xlsExport");
+            const rows = students.map(s => ({
+                Name: s.name,
+                USN: s.usn,
+                Email: s.email || "",
+                Phone: s.phone,
+                Branch: s.branch,
+                Section: s.section,
+                "Team ID": s.teamId || "",
+                "Team Role": s.teamRole || "",
+            }));
+            exportSingleSheet(rows, `idea-lab-data-${new Date().toISOString().split("T")[0]}.xlsx`, "Students");
+        } catch {
+            exportCSV();
+        }
+    };
+
     return (
-        <div className="space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             {/* Search + Export */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: "200px", position: "relative" }}>
+                    <Search style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "var(--muted)" }} />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => handleSearch(e.target.value)}
-                        placeholder="Search by USN, name, branch..."
-                        className="input-field !pl-11"
+                        placeholder="Search by USN, name, branch, team..."
+                        className="input-field"
+                        style={{ paddingLeft: "44px" }}
                     />
                 </div>
-                <button onClick={exportCSV} className="btn-secondary">
-                    <Download className="w-4 h-4" />
-                    Export CSV
-                </button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={exportCSV} className="btn-secondary">
+                        <Download style={{ width: 16, height: 16 }} /> CSV
+                    </button>
+                    <button onClick={exportXLS} className="btn-secondary">
+                        <FileSpreadsheet style={{ width: 16, height: 16 }} /> XLS
+                    </button>
+                </div>
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto border-[1.5px] border-ink bg-paper">
-                <table className="w-full text-sm border-collapse">
+            <div style={{ overflowX: "auto", border: "1.5px solid var(--ink)", background: "var(--paper)" }}>
+                <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
                     <thead>
-                        <tr className="border-b-[1.5px] border-ink bg-paper2">
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Name</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">USN</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden md:table-cell">Branch</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden md:table-cell">Section</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden lg:table-cell">Partner</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Status</th>
-                            <th className="text-left py-4 px-4 font-bold uppercase tracking-wider text-[10px] hidden lg:table-cell">Team</th>
+                        <tr style={{ borderBottom: "1.5px solid var(--ink)", background: "var(--paper2)" }}>
+                            <th style={thStyle}>Name</th>
+                            <th style={thStyle}>USN</th>
+                            <th style={thStyle} className="admin-hide-mobile">Branch</th>
+                            <th style={thStyle} className="admin-hide-mobile">Section</th>
+                            {showTeamColumns && (
+                                <>
+                                    <th style={thStyle} className="admin-hide-tablet">Team</th>
+                                    <th style={thStyle} className="admin-hide-tablet">Role</th>
+                                </>
+                            )}
+                            {showLegacyColumns && (
+                                <>
+                                    <th style={thStyle} className="admin-hide-tablet">Partner</th>
+                                    <th style={thStyle}>Pair Status</th>
+                                </>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
                         {paginatedStudents.map((student, i) => (
                             <tr
                                 key={student.usn}
-                                className={`border-b border-line hover:bg-paper2 transition-colors ${i % 2 === 0 ? "" : "bg-paper/50"}`}
+                                style={{
+                                    borderBottom: "1px solid var(--line)",
+                                    background: i % 2 === 0 ? "transparent" : "var(--paper2)",
+                                    transition: "background 0.15s",
+                                }}
                             >
-                                <td className="py-4 px-4 font-semibold text-ink">{student.name}</td>
-                                <td className="py-4 px-4 font-mono text-xs text-ink">{student.usn}</td>
-                                <td className="py-4 px-4 hidden md:table-cell text-muted">{student.branch}</td>
-                                <td className="py-4 px-4 hidden md:table-cell text-muted">{student.section}</td>
-                                <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs text-muted">
-                                    {student.partnerUSN}
-                                </td>
-                                <td className="py-4 px-4">
-                                    <span
-                                        className={`badge ${student.pairStatus === "confirmed"
-                                                ? "badge-success"
-                                                : "badge-warning"
-                                            }`}
-                                    >
-                                        {student.pairStatus}
-                                    </span>
-                                </td>
-                                <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs font-bold text-ink">
-                                    {student.teamId || "—"}
-                                </td>
+                                <td style={{ ...tdStyle, fontWeight: 600, color: "var(--ink)" }}>{student.name}</td>
+                                <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px", color: "var(--ink)" }}>{student.usn}</td>
+                                <td style={{ ...tdStyle, color: "var(--muted)" }} className="admin-hide-mobile">{student.branch}</td>
+                                <td style={{ ...tdStyle, color: "var(--muted)" }} className="admin-hide-mobile">{student.section}</td>
+                                {showTeamColumns && (
+                                    <>
+                                        <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }} className="admin-hide-tablet">
+                                            {student.teamId || "—"}
+                                        </td>
+                                        <td style={tdStyle} className="admin-hide-tablet">
+                                            {student.teamRole ? (
+                                                <span className={`badge ${student.teamRole === "lead" ? "badge-danger" : "badge-success"}`}>
+                                                    {student.teamRole}
+                                                </span>
+                                            ) : "—"}
+                                        </td>
+                                    </>
+                                )}
+                                {showLegacyColumns && (
+                                    <>
+                                        <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px", color: "var(--muted)" }} className="admin-hide-tablet">
+                                            {student.partnerUSN || "—"}
+                                        </td>
+                                        <td style={tdStyle}>
+                                            <span className={`badge ${student.pairStatus === "confirmed" ? "badge-success" : "badge-warning"}`}>
+                                                {student.pairStatus || "—"}
+                                            </span>
+                                        </td>
+                                    </>
+                                )}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
 
-            {/* Pagination + Results count */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted">
+            {/* Pagination */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "8px 0" }}>
+                <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)" }}>
                     Showing {paginatedStudents.length} of {filteredStudents.length} entries
                 </p>
-
                 {totalPages > 1 && (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="btn-secondary !py-2 !px-4 text-[11px]"
-                        >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary" style={{ padding: "8px 16px", fontSize: "11px" }}>
                             Prev
                         </button>
-                        <span className="text-[11px] font-bold px-2">
-                            {currentPage} / {totalPages}
-                        </span>
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="btn-secondary !py-2 !px-4 text-[11px]"
-                        >
+                        <span style={{ fontSize: "11px", fontWeight: 700, padding: "0 8px" }}>{currentPage} / {totalPages}</span>
+                        <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary" style={{ padding: "8px 16px", fontSize: "11px" }}>
                             Next
                         </button>
                     </div>
