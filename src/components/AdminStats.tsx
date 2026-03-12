@@ -1,14 +1,6 @@
 "use client";
 
-/**
- * AdminStats Component
- * 
- * Displays summary statistics cards for the admin dashboard:
- * - Total registrations
- * - Confirmed pairs
- * - Pending registrations
- * - Teams formed
- */
+import { Users, UserCheck, Hourglass, Trophy } from "lucide-react";
 
 interface StatsProps {
     totalRegistrations: number;
@@ -16,8 +8,6 @@ interface StatsProps {
     pendingRegistrations: number;
     teamsFormed: number;
 }
-
-import { Users, UserCheck, Hourglass, Trophy } from "lucide-react";
 
 export default function AdminStats({
     totalRegistrations,
@@ -30,29 +20,21 @@ export default function AdminStats({
             label: "Total Registrations",
             value: totalRegistrations,
             icon: <Users className="w-6 h-6" />,
-            gradient: "from-violet-600 to-violet-400",
-            bgGlow: "rgba(124, 58, 237, 0.15)",
         },
         {
             label: "Confirmed Pairs",
             value: confirmedPairs,
             icon: <UserCheck className="w-6 h-6" />,
-            gradient: "from-emerald-600 to-emerald-400",
-            bgGlow: "rgba(16, 185, 129, 0.15)",
         },
         {
             label: "Pending",
             value: pendingRegistrations,
             icon: <Hourglass className="w-6 h-6" />,
-            gradient: "from-amber-600 to-amber-400",
-            bgGlow: "rgba(245, 158, 11, 0.15)",
         },
         {
             label: "Teams Formed",
             value: teamsFormed,
             icon: <Trophy className="w-6 h-6" />,
-            gradient: "from-cyan-600 to-cyan-400",
-            bgGlow: "rgba(6, 182, 212, 0.15)",
         },
     ];
 
@@ -61,13 +43,13 @@ export default function AdminStats({
             {stats.map((stat, i) => (
                 <div
                     key={i}
-                    className="glass-card !p-6 flex flex-col justify-between"
-                    style={{ animationDelay: `${i * 0.1}s` }}
+                    className="glass-card flex flex-col justify-between"
+                    style={{ padding: "24px", animationDelay: `${i * 0.1}s` }}
                 >
-                    <div className="text-slate-400 mb-4">{stat.icon}</div>
+                    <div style={{ color: "var(--muted)", marginBottom: "16px" }}>{stat.icon}</div>
                     <div>
-                        <p className="text-5xl font-black mb-1 brand-font leading-none">{stat.value}</p>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.16em]">
+                        <p className="brand-font" style={{ fontSize: "48px", fontWeight: 900, lineHeight: 1, marginBottom: "4px", color: "var(--ink)" }}>{stat.value}</p>
+                        <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)" }}>
                             {stat.label}
                         </p>
                     </div>

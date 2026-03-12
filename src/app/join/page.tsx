@@ -3,55 +3,62 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import JoinForm from "@/components/JoinForm";
-import { Lightbulb, Info } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Suspense } from "react";
 
 function JoinPageContent() {
     const searchParams = useSearchParams();
     const codeFromUrl = searchParams.get("code");
-    
-    // We just need to give the user context that they are joining from an invite, 
-    // JoinForm expects user to type code if not provided, but we are just using the standard JoinForm
-    // For simplicity, we can let user see the code from the URL and copy it, 
-    // or if you want it injected, we'd need to modify JoinForm. 
-    // Since we created JoinForm already as a standalone module, we will just display the code 
-    // and they can paste it in, or we can instruct them to "Enter your code below"
 
     return (
-        <main className="min-h-screen flex flex-col">
-            <nav className="w-full px-4 py-4 flex justify-between items-center max-w-5xl mx-auto">
-                <Link href="/" className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-violet-500/20">
-                        <Lightbulb className="w-5 h-5 text-white" />
+        <main className="min-h-screen flex flex-col" style={{ background: "var(--paper)", color: "var(--ink)" }}>
+            <nav>
+                <Link href="/" className="nav-logo">
+                    <div className="logo-mark">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F2EFE9" strokeWidth="2.5" strokeLinecap="round">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+                        </svg>
                     </div>
-                    <span className="font-bold text-lg tracking-tight brand-font">Idea Lab</span>
+                    Idea Lab
                 </Link>
-                <Link href="/status" className="btn-secondary text-sm !py-2 !px-4">
-                    Check Status
-                </Link>
+                <div className="nav-right">
+                    <Link href="/status" className="nav-link">Check Status</Link>
+                    <Link href="/" className="nav-link">Home</Link>
+                </div>
             </nav>
 
-            <section className="flex-1 flex items-start justify-center px-4 py-8">
+            <section className="flex-1 flex items-start justify-center px-4 py-8" style={{ marginTop: 60 }}>
                 <div className="w-full max-w-md fade-in-up">
                     <div className="text-center mb-8">
-                        <h1 className="text-3xl font-bold mb-2 brand-font">Idea Lab Team Invitation</h1>
+                        <h1 style={{ fontFamily: "var(--bebas)", fontSize: "42px", letterSpacing: "0.02em", lineHeight: 1, marginBottom: "8px" }}>Team Invitation</h1>
                         {codeFromUrl ? (
-                            <p className="text-slate-400 text-sm">You've been invited! Enter the code below to join.</p>
+                            <p style={{ color: "var(--muted)", fontSize: "14px" }}>You&apos;ve been invited! Enter the code below to join.</p>
                         ) : (
-                            <p className="text-slate-400 text-sm">Join your friend's team using their invite code.</p>
+                            <p style={{ color: "var(--muted)", fontSize: "14px" }}>Join your friend&apos;s team using their invite code.</p>
                         )}
                     </div>
 
                     {codeFromUrl && (
-                        <div className="glass-card p-4 mb-6 flex items-start gap-3 fade-in-up border-cyan-500/30">
-                            <Info className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
-                            <div className="text-sm text-slate-300 w-full text-center">
-                                <p className="font-medium text-cyan-300 mb-1">Your Invite Code</p>
-                                <div className="text-2xl font-mono font-bold tracking-widest text-white bg-black/30 py-2 rounded-lg mt-2">
+                        <div className="glass-card p-4 mb-6 flex items-start gap-3 fade-in-up">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" className="mt-0.5 shrink-0">
+                                <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+                            </svg>
+                            <div style={{ fontSize: "13px", width: "100%", textAlign: "center" }}>
+                                <p style={{ fontWeight: 700, color: "var(--ink)", marginBottom: "8px" }}>Your Invite Code</p>
+                                <div style={{
+                                    fontFamily: "monospace",
+                                    fontSize: "28px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.2em",
+                                    color: "var(--ink)",
+                                    background: "var(--paper2)",
+                                    border: "1.5px solid var(--ink)",
+                                    padding: "12px",
+                                    marginTop: "8px",
+                                }}>
                                     {codeFromUrl}
                                 </div>
-                                <p className="text-xs text-slate-400 mt-2">Copy and paste this into the box below</p>
+                                <p style={{ color: "var(--muted)", fontSize: "11px", marginTop: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>Copy and paste this into the box below</p>
                             </div>
                         </div>
                     )}

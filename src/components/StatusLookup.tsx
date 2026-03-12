@@ -6,16 +6,6 @@ import { doc, getDoc, collection, query, where, getDocs } from "firebase/firesto
 import { validateUSN } from "@/lib/usnValidator";
 import { Search, Trophy, Hourglass, Users, UserCircle } from "lucide-react";
 
-/**
- * StatusLookup Component
- * 
- * Students enter their USN to check:
- * - Registration status
- * - Pair confirmation status
- * - Team assignment (if teams have been generated)
- * - Team member details (names, sections, phone numbers)
- */
-
 interface TeamMember {
     name: string;
     usn: string;
@@ -47,7 +37,6 @@ export default function StatusLookup() {
 
         const upperUSN = usn.toUpperCase();
 
-        // Validate USN format
         const result = validateUSN(upperUSN);
         if (!result.valid) {
             setError(result.error || "Invalid USN");
@@ -57,7 +46,6 @@ export default function StatusLookup() {
         setIsLoading(true);
 
         try {
-            // Fetch student registration
             const studentDoc = await getDoc(doc(db, "registrations", upperUSN));
 
             if (!studentDoc.exists()) {
@@ -76,7 +64,6 @@ export default function StatusLookup() {
                 teamId: data.teamId || null,
             });
 
-            // If team has been assigned, fetch team members
             if (data.teamId) {
                 const teamQuery = query(
                     collection(db, "registrations"),
@@ -132,7 +119,7 @@ export default function StatusLookup() {
 
             {/* Error Message */}
             {error && (
-                <div className="p-4 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-sm">
+                <div style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 600, background: "rgba(232, 52, 26, 0.08)", color: "var(--red)", border: "1.5px solid var(--red)" }}>
                     {error}
                 </div>
             )}
@@ -141,65 +128,54 @@ export default function StatusLookup() {
             {studentData && (
                 <div className="space-y-6 fade-in-up">
                     {/* Registration Card */}
-                    <div className="glass-card p-6 border-l-4 border-l-violet-500">
+                    <div className="glass-card p-6" style={{ borderLeft: "4px solid var(--ink)" }}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-lg flex items-center gap-2"><UserCircle className="w-5 h-5 text-violet-400"/> Your Registration</h3>
+                            <h3 style={{ fontFamily: "var(--bebas)", fontSize: "20px", letterSpacing: "0.04em", color: "var(--ink)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                <UserCircle style={{ width: 20, height: 20, color: "var(--muted)" }} /> Your Registration
+                            </h3>
                             <span
-                                className={`badge ${studentData.pairStatus === "confirmed"
-                                        ? "badge-success"
-                                        : "badge-warning"
-                                    }`}
+                                className={`badge ${studentData.pairStatus === "confirmed" ? "badge-success" : "badge-warning"}`}
                             >
-                                <span
-                                    className={`w-2 h-2 rounded-full ${studentData.pairStatus === "confirmed"
-                                            ? "bg-emerald-400"
-                                            : "bg-amber-400 animate-pulse"
-                                        }`}
-                                />
-                                {studentData.pairStatus === "confirmed"
-                                    ? "Pair Confirmed"
-                                    : "Waiting for partner"}
+                                {studentData.pairStatus === "confirmed" ? "Pair Confirmed" : "Waiting for partner"}
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="grid grid-cols-2 gap-4" style={{ fontSize: "14px" }}>
                             <div>
-                                <span className="text-slate-500">Name</span>
-                                <p className="font-medium">{studentData.name}</p>
+                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Name</span>
+                                <p style={{ fontWeight: 600, color: "var(--ink)", marginTop: "2px" }}>{studentData.name}</p>
                             </div>
                             <div>
-                                <span className="text-slate-500">USN</span>
-                                <p className="font-medium font-mono">{studentData.usn}</p>
+                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>USN</span>
+                                <p style={{ fontWeight: 600, color: "var(--ink)", fontFamily: "monospace", marginTop: "2px" }}>{studentData.usn}</p>
                             </div>
                             <div>
-                                <span className="text-slate-500">Branch</span>
-                                <p className="font-medium">{studentData.branch}</p>
+                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Branch</span>
+                                <p style={{ fontWeight: 600, color: "var(--ink)", marginTop: "2px" }}>{studentData.branch}</p>
                             </div>
                             <div>
-                                <span className="text-slate-500">Section</span>
-                                <p className="font-medium">{studentData.section}</p>
+                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Section</span>
+                                <p style={{ fontWeight: 600, color: "var(--ink)", marginTop: "2px" }}>{studentData.section}</p>
                             </div>
                             <div className="col-span-2">
-                                <span className="text-slate-500">Partner USN</span>
-                                <p className="font-medium font-mono">
-                                    {studentData.partnerUSN}
-                                </p>
+                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Partner USN</span>
+                                <p style={{ fontWeight: 600, color: "var(--ink)", fontFamily: "monospace", marginTop: "2px" }}>{studentData.partnerUSN}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Team Status */}
                     {studentData.teamId ? (
-                        <div className="glass-card p-6 border-l-4 border-l-cyan-500 mt-6">
+                        <div className="glass-card p-6" style={{ borderLeft: "4px solid var(--red)" }}>
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-cyan-500/20">
-                                    <Trophy className="w-6 h-6 text-white" />
+                                <div style={{ width: 48, height: 48, border: "1.5px solid var(--ink)", display: "grid", placeItems: "center" }}>
+                                    <Trophy style={{ width: 24, height: 24, color: "var(--red)" }} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-lg">
+                                    <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", color: "var(--ink)" }}>
                                         {studentData.teamId}
                                     </h3>
-                                    <p className="text-slate-400 text-sm">
+                                    <p style={{ color: "var(--muted)", fontSize: "12px", fontWeight: 600 }}>
                                         Your team has been assigned!
                                     </p>
                                 </div>
@@ -207,39 +183,40 @@ export default function StatusLookup() {
 
                             {/* Team Members */}
                             <div className="space-y-3">
-                                <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+                                <h4 style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)" }}>
                                     Team Members
                                 </h4>
                                 {teamMembers.map((member, i) => (
                                     <div
                                         key={i}
-                                        className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5"
+                                        className="flex items-center justify-between"
+                                        style={{ padding: "12px 16px", background: i % 2 === 0 ? "var(--paper2)" : "var(--paper)", border: "1px solid var(--line)" }}
                                     >
                                         <div>
-                                            <p className="font-medium text-sm">{member.name}</p>
-                                            <p className="text-xs text-slate-400">
+                                            <p style={{ fontWeight: 600, fontSize: "14px", color: "var(--ink)" }}>{member.name}</p>
+                                            <p style={{ fontSize: "11px", color: "var(--muted)" }}>
                                                 {member.branch} — Section {member.section}
                                             </p>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-mono text-xs text-slate-400">
+                                        <div style={{ textAlign: "right" }}>
+                                            <p style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)" }}>
                                                 {member.usn}
                                             </p>
-                                            <p className="text-xs text-cyan-400">{member.phone}</p>
+                                            <p style={{ fontSize: "12px", color: "var(--ink)", fontWeight: 600 }}>{member.phone}</p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     ) : (
-                        <div className="glass-card p-8 text-center mt-6">
-                            <div className="flex justify-center mb-4 float-animation">
-                                <Hourglass className="w-12 h-12 text-slate-400" />
+                        <div className="glass-card p-8 text-center">
+                            <div className="flex justify-center mb-4">
+                                <Hourglass style={{ width: 40, height: 40, color: "var(--muted)" }} />
                             </div>
-                            <h3 className="font-bold text-lg mb-2">
+                            <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", color: "var(--ink)", marginBottom: "8px" }}>
                                 Teams will be announced soon
                             </h3>
-                            <p className="text-slate-400 text-sm">
+                            <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.7 }}>
                                 The admin will run the team matching algorithm once all
                                 registrations are complete. Check back later!
                             </p>
