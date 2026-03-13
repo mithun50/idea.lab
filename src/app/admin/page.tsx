@@ -57,6 +57,7 @@ export default function AdminPage() {
     const [teamsForming, setTeamsForming] = useState(0);
     const [teamsFull, setTeamsFull] = useState(0);
     const [teamNamesMap, setTeamNamesMap] = useState<Record<string, string>>({});
+    const [teamStatusMap, setTeamStatusMap] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -100,16 +101,19 @@ export default function AdminPage() {
             const teamsSnap = await getDocs(collection(db, "teams"));
             let forming = 0, full = 0;
             const names: Record<string, string> = {};
+            const statuses: Record<string, string> = {};
             teamsSnap.forEach(d => {
                 const data = d.data();
                 const status = data.status;
                 if (status === "forming") forming++;
                 else if (status === "full" || status === "locked") full++;
                 if (data.name) names[d.id] = data.name;
+                statuses[d.id] = status || "unknown";
             });
             setTeamsForming(forming);
             setTeamsFull(full);
             setTeamNamesMap(names);
+            setTeamStatusMap(statuses);
         } catch (error) {
             console.error("Error fetching team stats:", error);
         }
@@ -561,19 +565,99 @@ export default function AdminPage() {
                         )}
 
                         {/* ── Teams Tab ── */}
-                        {activeTab === "teams" && (
-                            <>
-                                <header>
-                                    <h1 className="admin-section-title">TEAMS</h1>
-                                    <p className="admin-section-sub">
-                                        {teamsForming} Forming · {teamsFull} Full
-                                    </p>
-                                </header>
-                                <div className="admin-card" style={{ padding: "4px" }}>
-                                    <StudentTable students={students.filter(s => s.teamId !== null)} showTeamColumns={true} teamNames={teamNamesMap} />
-                                </div>
-                            </>
-                        )}
+                        {activeTab === "teams" && (() => {
+                            const grouped: Record<string, Student[]> = {};
+                            students.forEach((s) => {
+                                if (s.teamId) {
+                                    if (!grouped[s.teamId]) grouped[s.teamId] = [];
+                                    grouped[s.teamId].push(s);
+                                }
+                            });
+                            const teamIds = Object.keys(grouped).sort((a, b) => {
+                                const nameA = teamNamesMap[a] || a;
+                                const nameB = teamNamesMap[b] || b;
+                                return nameA.localeCompare(nameB);
+                            });
+
+                            return (
+                                <>
+                                    <header>
+                                        <h1 className="admin-section-title">TEAMS</h1>
+                                        <p className="admin-section-sub">
+                                            {teamIds.length} Teams — {teamsForming} Forming · {teamsFull} Full
+                                        </p>
+                                    </header>
+
+                                    {teamIds.length === 0 ? (
+                                        <div className="admin-card" style={{ textAlign: "center", padding: "48px 24px" }}>
+                                            <Trophy style={{ width: 40, height: 40, color: "var(--muted)", margin: "0 auto 16px" }} />
+                                            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>No teams formed yet</p>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                                            {teamIds.map((teamId) => {
+                                                const members = grouped[teamId];
+                                                const teamName = teamNamesMap[teamId] || "Unnamed Team";
+                                                const status = teamStatusMap[teamId] || "unknown";
+                                                const statusColor = status === "full" || status === "locked" ? "#10b981" : status === "forming" ? "#f59e0b" : "var(--muted)";
+
+                                                return (
+                                                    <div key={teamId} className="admin-card" style={{ padding: 0, overflow: "hidden" }}>
+                                                        {/* Team Header */}
+                                                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "16px 20px", borderBottom: "1.5px solid var(--line)", background: "var(--paper2)" }}>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                                                <Trophy style={{ width: 18, height: 18, color: "var(--red)", flexShrink: 0 }} />
+                                                                <div>
+                                                                    <h3 style={{ fontFamily: "var(--bebas)", fontSize: "20px", letterSpacing: "0.04em", lineHeight: 1 }}>{teamName}</h3>
+                                                                    <p style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>{teamId}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                                <span style={{ fontSize: "10px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", padding: "3px 10px", background: statusColor, color: "#fff" }}>
+                                                                    {status}
+                                                                </span>
+                                                                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)" }}>
+                                                                    {members.length} member{members.length !== 1 ? "s" : ""}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        {/* Members */}
+                                                        <div style={{ overflowX: "auto" }}>
+                                                            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+                                                                <thead>
+                                                                    <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                                                                        <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>Name</th>
+                                                                        <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>USN</th>
+                                                                        <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }} className="admin-hide-mobile">Branch</th>
+                                                                        <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>Role</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {members.map((m, i) => (
+                                                                        <tr key={m.usn} style={{ borderBottom: "1px solid var(--line)", background: i % 2 === 0 ? "transparent" : "var(--paper2)" }}>
+                                                                            <td style={{ padding: "12px 20px", fontWeight: 600, color: "var(--ink)" }}>{m.name}</td>
+                                                                            <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "12px", color: "var(--ink)" }}>{m.usn}</td>
+                                                                            <td style={{ padding: "12px 20px", color: "var(--muted)" }} className="admin-hide-mobile">{m.branch}</td>
+                                                                            <td style={{ padding: "12px 20px" }}>
+                                                                                {m.teamRole ? (
+                                                                                    <span className={`badge ${m.teamRole === "lead" ? "badge-danger" : "badge-success"}`}>
+                                                                                        {m.teamRole}
+                                                                                    </span>
+                                                                                ) : "—"}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         {/* ── Settings Tab ── */}
                         {activeTab === "settings" && (
