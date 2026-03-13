@@ -57,6 +57,7 @@ export default function AdminPage() {
     const [csvStudentCount, setCsvStudentCount] = useState(0);
     const [teamsForming, setTeamsForming] = useState(0);
     const [teamsFull, setTeamsFull] = useState(0);
+    const [teamNamesMap, setTeamNamesMap] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -97,13 +98,17 @@ export default function AdminPage() {
 
             const teamsSnap = await getDocs(collection(db, "teams"));
             let forming = 0, full = 0;
+            const names: Record<string, string> = {};
             teamsSnap.forEach(d => {
-                const status = d.data().status;
+                const data = d.data();
+                const status = data.status;
                 if (status === "forming") forming++;
                 else if (status === "full" || status === "locked") full++;
+                if (data.name) names[d.id] = data.name;
             });
             setTeamsForming(forming);
             setTeamsFull(full);
+            setTeamNamesMap(names);
         } catch (error) {
             console.error("Error fetching team stats:", error);
         }
@@ -537,7 +542,7 @@ export default function AdminPage() {
                                     </button>
                                 </header>
                                 <div className="admin-card" style={{ padding: "4px" }}>
-                                    <StudentTable students={students} showTeamColumns={true} showLegacyColumns={true} />
+                                    <StudentTable students={students} showTeamColumns={true} showLegacyColumns={true} teamNames={teamNamesMap} />
                                 </div>
                             </>
                         )}
@@ -552,7 +557,7 @@ export default function AdminPage() {
                                     </p>
                                 </header>
                                 <div className="admin-card" style={{ padding: "4px" }}>
-                                    <StudentTable students={students.filter(s => s.teamId !== null)} showTeamColumns={true} />
+                                    <StudentTable students={students.filter(s => s.teamId !== null)} showTeamColumns={true} teamNames={teamNamesMap} />
                                 </div>
                             </>
                         )}

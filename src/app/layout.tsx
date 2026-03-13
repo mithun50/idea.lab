@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Idea Lab — DBIT",
+  title: "Idea Lab — Don Bosco Institute of Technology, Kumbalagodu, Bangalore",
   description: "Register. Pair Up. Innovate Together. Join 825+ first-year students in cross-branch teams of 6.",
 };
 

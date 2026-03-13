@@ -40,7 +40,7 @@ export default function Home() {
         <div className="ticker-inner">
           {[...Array(2)].map((_, i) => (
             <span key={i} style={{ display: "contents" }}>
-              {["Team Formation Open", "825+ Students", "Build Your Team of 6", "Don Bosco Institute of Technology", "2026 Cohort", "Cross-Branch Diversity"].map((text) => (
+              {["Team Formation Open", "825+ Students", "Build Your Team of 6", "Don Bosco Institute of Technology, Kumbalagodu, Bangalore", "2026 Cohort", "Cross-Branch Diversity"].map((text) => (
                 <span key={text + i} className="ticker-item">
                   <span className="ticker-dot" />
                   {text}
@@ -254,7 +254,8 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer>
-        <span className="footer-brand">© 2026 Idea Lab — Don Bosco Institute of Technology</span>
+        <span className="footer-brand">© 2026 Idea Lab — Don Bosco Institute of Technology, Kumbalagodu, Bangalore</span>
+        <span className="footer-brand" style={{ fontSize: "10px", color: "var(--muted)" }}>Made by B Section CSE Students: Harsha N, Mithun Gowda B, Naren V &amp; Nevil Anson Dsouza</span>
         <div className="footer-links">
           <Link href="/register">Register</Link>
           <Link href="/team/browse">Teams</Link>

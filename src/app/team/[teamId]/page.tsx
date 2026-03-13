@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -13,7 +13,7 @@ import TeamStatusBadge from "@/components/TeamStatusBadge";
 import InviteManager from "@/components/InviteManager";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import Link from "next/link";
-import { ArrowLeft, Copy, Share2 } from "lucide-react";
+import { ArrowLeft, Share2 } from "lucide-react";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -25,6 +25,22 @@ export default function TeamDetailPage() {
 
   const session = typeof window !== "undefined" ? getSession() : null;
   const isLead = session?.usn === team?.leadUSN;
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: team?.name || "Idea Lab Team", text: "Join my team on Idea Lab \u2014 Don Bosco Institute of Technology, Kumbalagodu, Bangalore!", url });
+        return;
+      } catch { /* user cancelled or share failed, fall through to clipboard */ }
+    }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
 
   const fetchTeam = useCallback(async () => {
     try {
@@ -147,13 +163,14 @@ export default function TeamDetailPage() {
               </p>
               {/* Share team link */}
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  alert("Team link copied!");
-                }}
-                style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                onClick={handleShare}
+                style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: copied ? "#10b981" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", transition: "color 0.2s" }}
               >
-                <Copy style={{ width: 12, height: 12 }} /> Share
+                {copied ? (
+                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg> Copied!</>
+                ) : (
+                  <><Share2 style={{ width: 12, height: 12 }} /> Share</>
+                )}
               </button>
             </div>
             <TeamMemberList members={team.members} leadUSN={team.leadUSN} />

@@ -21,6 +21,7 @@ interface StudentTableProps {
     students: Student[];
     showTeamColumns?: boolean;
     showLegacyColumns?: boolean;
+    teamNames?: Record<string, string>;
 }
 
 const thStyle: React.CSSProperties = {
@@ -39,7 +40,7 @@ const tdStyle: React.CSSProperties = {
     fontSize: "13px",
 };
 
-export default function StudentTable({ students, showTeamColumns = true, showLegacyColumns = false }: StudentTableProps) {
+export default function StudentTable({ students, showTeamColumns = true, showLegacyColumns = false, teamNames = {} }: StudentTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 20;
@@ -71,10 +72,10 @@ export default function StudentTable({ students, showTeamColumns = true, showLeg
     };
 
     const exportCSV = () => {
-        const headers = ["Name", "USN", "Email", "Phone", "Branch", "Section", "Team ID", "Team Role"];
+        const headers = ["Name", "USN", "Email", "Phone", "Branch", "Section", "Team ID", "Team Name", "Team Role"];
         if (showLegacyColumns) headers.push("Partner USN", "Pair Status");
         const rows = students.map((s) => {
-            const row = [s.name, s.usn, s.email || "", s.phone, s.branch, s.section, s.teamId || "", s.teamRole || ""];
+            const row = [s.name, s.usn, s.email || "", s.phone, s.branch, s.section, s.teamId || "", s.teamId ? (teamNames[s.teamId] || "") : "", s.teamRole || ""];
             if (showLegacyColumns) row.push(s.partnerUSN || "", s.pairStatus || "");
             return row;
         });
@@ -105,6 +106,7 @@ export default function StudentTable({ students, showTeamColumns = true, showLeg
                 Branch: s.branch,
                 Section: s.section,
                 "Team ID": s.teamId || "",
+                "Team Name": s.teamId ? (teamNames[s.teamId] || "") : "",
                 "Team Role": s.teamRole || "",
             }));
             exportSingleSheet(rows, `idea-lab-data-${new Date().toISOString().split("T")[0]}.xlsx`, "Students");
@@ -150,6 +152,7 @@ export default function StudentTable({ students, showTeamColumns = true, showLeg
                             {showTeamColumns && (
                                 <>
                                     <th style={thStyle} className="admin-hide-tablet">Team</th>
+                                    <th style={thStyle} className="admin-hide-tablet">Team Name</th>
                                     <th style={thStyle} className="admin-hide-tablet">Role</th>
                                 </>
                             )}
@@ -179,6 +182,9 @@ export default function StudentTable({ students, showTeamColumns = true, showLeg
                                     <>
                                         <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }} className="admin-hide-tablet">
                                             {student.teamId || "—"}
+                                        </td>
+                                        <td style={{ ...tdStyle, fontSize: "12px", color: "var(--ink)" }} className="admin-hide-tablet">
+                                            {student.teamId ? (teamNames[student.teamId] || "—") : "—"}
                                         </td>
                                         <td style={tdStyle} className="admin-hide-tablet">
                                             {student.teamRole ? (
