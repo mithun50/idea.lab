@@ -7,6 +7,7 @@ import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBa
 import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
 import CSVUploader from "@/components/CSVUploader";
+import CSVStudentTable, { CSVStudent } from "@/components/CSVStudentTable";
 import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet } from "lucide-react";
 
 interface Student {
@@ -56,6 +57,7 @@ export default function AdminPage() {
     const [configLoading, setConfigLoading] = useState(false);
 
     // New stats
+    const [csvStudents, setCsvStudents] = useState<CSVStudent[]>([]);
     const [csvStudentCount, setCsvStudentCount] = useState(0);
     const [teamsForming, setTeamsForming] = useState(0);
     const [teamsFull, setTeamsFull] = useState(0);
@@ -97,6 +99,19 @@ export default function AdminPage() {
         try {
             const studentsSnap = await getDocs(collection(db, "students"));
             setCsvStudentCount(studentsSnap.size);
+            const csvData: CSVStudent[] = [];
+            studentsSnap.forEach((d) => {
+                const data = d.data();
+                csvData.push({
+                    usn: data.usn || d.id,
+                    name: data.name || "",
+                    email: data.email || "",
+                    phone: data.phone || "",
+                    branch: data.branch || "",
+                    section: data.section || "",
+                });
+            });
+            setCsvStudents(csvData);
 
             const teamsSnap = await getDocs(collection(db, "teams"));
             let forming = 0, full = 0;
@@ -555,6 +570,23 @@ export default function AdminPage() {
                                         <Database style={{ width: 20, height: 20, color: "var(--red)" }} /> Upload Student CSV
                                     </h3>
                                     <CSVUploader onUploadComplete={fetchStudents} />
+                                </div>
+
+                                <div className="admin-card" style={{ padding: "4px" }}>
+                                    <CSVStudentTable
+                                        students={csvStudents}
+                                        onUpdate={async (usn, data) => {
+                                            await updateDoc(doc(db, "students", usn), data);
+                                            setCsvStudents((prev) =>
+                                                prev.map((s) => (s.usn === usn ? { ...s, ...data } : s))
+                                            );
+                                        }}
+                                        onDelete={async (usn) => {
+                                            await deleteDoc(doc(db, "students", usn));
+                                            setCsvStudents((prev) => prev.filter((s) => s.usn !== usn));
+                                            setCsvStudentCount((c) => c - 1);
+                                        }}
+                                    />
                                 </div>
                             </>
                         )}
