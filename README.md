@@ -265,8 +265,10 @@ Update config.csvLastUploadedAt
 - **Registration Gate** — toggle student registrations open/closed
 - **Team Formation Gate** — toggle team creation and joining open/closed
 - **Danger Zone** — reset database (requires password re-authentication + type "reset database")
-  - Deletes all `registrations`, `teams`, and `invites` documents
-  - Does NOT delete `students` (CSV data) or `admins`
+  - Always deletes all `registrations`, `teams`, and `invites` documents
+  - Optional: **Clear Supabase auth users** (email OTP data) — checked by default
+  - Optional: **Clear CSV student master data** (`students` collection) — unchecked by default
+  - Does NOT delete `admins` or `config`
 
 ---
 
@@ -614,6 +616,9 @@ src/
 │   ├── status/page.tsx        # USN status lookup
 │   ├── join/page.tsx          # Legacy join redirect
 │   ├── admin/page.tsx         # Admin panel (sidebar + tabs)
+│   ├── api/
+│   │   └── admin/
+│   │       └── clear-supabase/route.ts  # Server-side Supabase user cleanup
 │   ├── team/
 │   │   ├── create/page.tsx    # Create new team (gate-checked)
 │   │   ├── browse/page.tsx    # Browse open teams (gate-checked)
@@ -683,6 +688,9 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 # Supabase (Student Email OTP)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# Supabase Admin (server-side only — used for clearing auth users in admin reset)
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 ### Supabase Setup
