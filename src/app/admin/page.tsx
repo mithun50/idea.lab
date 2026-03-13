@@ -201,8 +201,8 @@ export default function AdminPage() {
     const handleResetDatabase = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !user.email) return;
-        if (resetPhrase !== "reset database") {
-            setResetError("Please type 'reset database' exactly.");
+        if (resetPhrase !== "RESET DATABASE") {
+            setResetError("Please type 'RESET DATABASE' exactly.");
             return;
         }
 
@@ -790,7 +790,7 @@ export default function AdminPage() {
                             </div>
                             <div>
                                 <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
-                                    Type <span style={{ color: "var(--red)", fontStyle: "italic" }}>reset database</span>
+                                    Type <span style={{ color: "var(--red)", fontStyle: "italic" }}>RESET DATABASE</span>
                                 </label>
                                 <input type="text" value={resetPhrase} onChange={(e) => setResetPhrase(e.target.value)} placeholder="CONFIRMATION PHRASE" className="input-field" required />
                             </div>
@@ -812,7 +812,7 @@ export default function AdminPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={resetLoading || resetPhrase !== "reset database" || !resetPassword}
+                                    disabled={resetLoading || resetPhrase !== "RESET DATABASE" || !resetPassword}
                                     style={{
                                         flex: 1, padding: "14px", background: "var(--red)", color: "#fff",
                                         fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em",
