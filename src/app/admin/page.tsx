@@ -567,10 +567,13 @@ export default function AdminPage() {
                         {/* ── Teams Tab ── */}
                         {activeTab === "teams" && (() => {
                             const grouped: Record<string, Student[]> = {};
+                            const unteamed: Student[] = [];
                             students.forEach((s) => {
                                 if (s.teamId) {
                                     if (!grouped[s.teamId]) grouped[s.teamId] = [];
                                     grouped[s.teamId].push(s);
+                                } else {
+                                    unteamed.push(s);
                                 }
                             });
                             const teamIds = Object.keys(grouped).sort((a, b) => {
@@ -584,7 +587,7 @@ export default function AdminPage() {
                                     <header>
                                         <h1 className="admin-section-title">TEAMS</h1>
                                         <p className="admin-section-sub">
-                                            {teamIds.length} Teams — {teamsForming} Forming · {teamsFull} Full
+                                            {teamIds.length} Teams — {teamsForming} Forming · {teamsFull} Full · {unteamed.length} Without Team
                                         </p>
                                     </header>
 
@@ -653,6 +656,43 @@ export default function AdminPage() {
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    )}
+
+                                    {/* Unteamed Registrations */}
+                                    {unteamed.length > 0 && (
+                                        <div className="admin-card" style={{ padding: 0, overflow: "hidden", marginTop: "24px" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px 20px", borderBottom: "1.5px solid var(--line)", background: "rgba(232, 52, 26, 0.04)" }}>
+                                                <Users style={{ width: 18, height: 18, color: "var(--red)", flexShrink: 0 }} />
+                                                <div>
+                                                    <h3 style={{ fontFamily: "var(--bebas)", fontSize: "20px", letterSpacing: "0.04em", lineHeight: 1 }}>WITHOUT TEAM</h3>
+                                                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", marginTop: "2px" }}>
+                                                        {unteamed.length} registered student{unteamed.length !== 1 ? "s" : ""} not in any team
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div style={{ overflowX: "auto" }}>
+                                                <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                                                            <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>Name</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>USN</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }} className="admin-hide-mobile">Branch</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }} className="admin-hide-mobile">Section</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {unteamed.map((s, i) => (
+                                                            <tr key={s.usn} style={{ borderBottom: "1px solid var(--line)", background: i % 2 === 0 ? "transparent" : "var(--paper2)" }}>
+                                                                <td style={{ padding: "12px 20px", fontWeight: 600, color: "var(--ink)" }}>{s.name}</td>
+                                                                <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "12px", color: "var(--ink)" }}>{s.usn}</td>
+                                                                <td style={{ padding: "12px 20px", color: "var(--muted)" }} className="admin-hide-mobile">{s.branch}</td>
+                                                                <td style={{ padding: "12px 20px", color: "var(--muted)" }} className="admin-hide-mobile">{s.section}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     )}
                                 </>

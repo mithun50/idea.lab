@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, updateDoc, serverTimestamp, collection, query, getDocs, limit } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp, collection, query, getDocs, limit, where } from "firebase/firestore";
 import { generateTeamId } from "@/lib/idGenerator";
 import { updateSessionTeam } from "@/lib/session";
 import { SessionData } from "@/lib/types";
@@ -90,13 +90,29 @@ function CreateTeamContent({ session }: { session: SessionData }) {
     setIsCreating(true);
     setError("");
 
+    const trimmedName = teamName.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 10) {
+      setError("Team name must be between 2 and 10 characters.");
+      setIsCreating(false);
+      return;
+    }
+
     try {
+      // Check for duplicate team name
+      const nameQuery = query(collection(db, "teams"), where("name", "==", trimmedName));
+      const nameSnap = await getDocs(nameQuery);
+      if (!nameSnap.empty) {
+        setError("A team with this name already exists. Choose a different name.");
+        setIsCreating(false);
+        return;
+      }
+
       const teamId = generateTeamId();
       const branchDistribution = { [session.branch]: 1 };
 
       await setDoc(doc(db, "teams", teamId), {
         teamId,
-        name: teamName.trim() || null,
+        name: trimmedName,
         leadUSN: session.usn,
         members: [leadMember],
         memberCount: 1,
@@ -142,16 +158,21 @@ function CreateTeamContent({ session }: { session: SessionData }) {
         {/* Team Name */}
         <div>
           <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
-            Team Name <span style={{ fontWeight: 400 }}>(optional)</span>
+            Team Name <span style={{ color: "var(--red)" }}>*</span>
           </label>
           <input
             type="text"
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
-            placeholder="Give your team a name"
+            placeholder="2–10 characters"
             className="input-field"
-            maxLength={40}
+            minLength={2}
+            maxLength={10}
+            required
           />
+          <p style={{ fontSize: "10px", color: teamName.trim().length > 0 && (teamName.trim().length < 2 || teamName.trim().length > 10) ? "var(--red)" : "var(--muted)", marginTop: "6px", fontWeight: 600 }}>
+            {teamName.trim().length}/10 characters (min 2, max 10)
+          </p>
         </div>
 
         {/* Visibility */}
@@ -218,7 +239,7 @@ function CreateTeamContent({ session }: { session: SessionData }) {
         )}
 
         {/* Submit */}
-        <button type="submit" disabled={isCreating} className="btn-primary w-full" style={{ padding: "16px" }}>
+        <button type="submit" disabled={isCreating || teamName.trim().length < 2 || teamName.trim().length > 10} className="btn-primary w-full" style={{ padding: "16px" }}>
           {isCreating ? <><div className="spinner" /> Creating...</> : "Create Team"}
         </button>
       </form>
