@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { db, auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch, setDoc, where, getCountFromServer } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, writeBatch, setDoc } from "firebase/firestore";
 import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
 import CSVUploader from "@/components/CSVUploader";
 import CSVStudentTable, { CSVStudent } from "@/components/CSVStudentTable";
-import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, UserPlus, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet } from "lucide-react";
+import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet } from "lucide-react";
 
 interface Student {
     name: string;
@@ -23,7 +23,7 @@ interface Student {
     pairStatus?: string;
 }
 
-type TabType = "dashboard" | "students" | "registrations" | "teams" | "admins" | "settings";
+type TabType = "dashboard" | "students" | "registrations" | "teams" | "settings";
 
 export default function AdminPage() {
     const [user, setUser] = useState<User | null>(null);
@@ -46,11 +46,6 @@ export default function AdminPage() {
     const [clearSupabase, setClearSupabase] = useState(true);
     const [clearCSV, setClearCSV] = useState(false);
 
-    // Admin Management States
-    const [admins, setAdmins] = useState<string[]>([]);
-    const [newAdminEmail, setNewAdminEmail] = useState("");
-    const [adminActionLoading, setAdminActionLoading] = useState(false);
-
     // Settings States
     const [registrationsOpen, setRegistrationsOpen] = useState(true);
     const [teamFormationOpen, setTeamFormationOpen] = useState(true);
@@ -69,17 +64,6 @@ export default function AdminPage() {
             setAuthLoading(false);
         });
         return () => unsubscribe();
-    }, []);
-
-    const fetchAdmins = useCallback(async () => {
-        try {
-            const snapshot = await getDocs(collection(db, "admins"));
-            const list: string[] = [];
-            snapshot.forEach(doc => list.push(doc.data().email));
-            setAdmins(list);
-        } catch (error) {
-            console.error("Error fetching admins:", error);
-        }
     }, []);
 
     const fetchConfig = useCallback(async () => {
@@ -147,7 +131,6 @@ export default function AdminPage() {
                 });
             });
             setStudents(data);
-            await fetchAdmins();
             await fetchConfig();
             await fetchTeamStats();
         } catch {
@@ -165,7 +148,6 @@ export default function AdminPage() {
                     });
                 });
                 setStudents(data);
-                await fetchAdmins();
                 await fetchConfig();
                 await fetchTeamStats();
             } catch (error2) {
@@ -174,7 +156,7 @@ export default function AdminPage() {
         } finally {
             setDataLoading(false);
         }
-    }, [fetchAdmins, fetchConfig, fetchTeamStats]);
+    }, [fetchConfig, fetchTeamStats]);
 
     useEffect(() => {
         if (user) fetchStudents();
@@ -275,36 +257,6 @@ export default function AdminPage() {
         }
     };
 
-    const handleAddAdmin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newAdminEmail.trim()) return;
-        setAdminActionLoading(true);
-        try {
-            const id = newAdminEmail.trim().toLowerCase().replace(/[@.]/g, "_");
-            await setDoc(doc(db, "admins", id), { email: newAdminEmail.trim().toLowerCase() });
-            setNewAdminEmail("");
-            await fetchAdmins();
-        } catch {
-            alert("Failed to add admin.");
-        } finally {
-            setAdminActionLoading(false);
-        }
-    };
-
-    const handleRemoveAdmin = async (adminEmail: string) => {
-        if (!confirm(`Remove ${adminEmail} as admin?`)) return;
-        setAdminActionLoading(true);
-        try {
-            const id = adminEmail.replace(/[@.]/g, "_");
-            await deleteDoc(doc(db, "admins", id));
-            await fetchAdmins();
-        } catch {
-            console.error("Error removing admin");
-        } finally {
-            setAdminActionLoading(false);
-        }
-    };
-
     const toggleRegistrations = async () => {
         setConfigLoading(true);
         try {
@@ -392,7 +344,6 @@ export default function AdminPage() {
         { id: "students", label: "Students", icon: <Database style={{ width: 22, height: 22 }} /> },
         { id: "registrations", label: "Registrations", icon: <Users style={{ width: 22, height: 22 }} /> },
         { id: "teams", label: "Teams", icon: <Trophy style={{ width: 22, height: 22 }} /> },
-        { id: "admins", label: "Admins", icon: <UserPlus style={{ width: 22, height: 22 }} /> },
         { id: "settings", label: "Settings", icon: <Settings style={{ width: 22, height: 22 }} /> }
     ];
 
@@ -620,59 +571,6 @@ export default function AdminPage() {
                                 </header>
                                 <div className="admin-card" style={{ padding: "4px" }}>
                                     <StudentTable students={students.filter(s => s.teamId !== null)} showTeamColumns={true} teamNames={teamNamesMap} />
-                                </div>
-                            </>
-                        )}
-
-                        {/* ── Admins Tab ── */}
-                        {activeTab === "admins" && (
-                            <>
-                                <header>
-                                    <h1 className="admin-section-title">ADMINS</h1>
-                                    <p className="admin-section-sub">Manage Portal Permissions</p>
-                                </header>
-
-                                <div className="admin-grid-2">
-                                    <div className="admin-card">
-                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px" }}>
-                                            <UserPlus style={{ width: 20, height: 20, color: "var(--red)" }} /> Authorize Admin
-                                        </h3>
-                                        <form onSubmit={handleAddAdmin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                                            <div>
-                                                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "10px" }}>Email Address</label>
-                                                <input type="email" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} placeholder="admin@dbit.in" className="input-field" required />
-                                            </div>
-                                            <button type="submit" disabled={adminActionLoading || !newAdminEmail} className="btn-primary w-full" style={{ padding: "14px" }}>
-                                                {adminActionLoading ? <div className="spinner" /> : "GRANT ACCESS"}
-                                            </button>
-                                        </form>
-                                    </div>
-
-                                    <div className="admin-card" style={{ background: "var(--paper2)" }}>
-                                        <h3 style={{ fontFamily: "var(--bebas)", fontSize: "22px", letterSpacing: "0.04em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px" }}>
-                                            <Users style={{ width: 20, height: 20, color: "var(--red)" }} /> Authorized Staff
-                                        </h3>
-                                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                                            {admins.length === 0 ? (
-                                                <div style={{ padding: "24px", textAlign: "center", border: "1.5px dashed var(--line)" }}>
-                                                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>Root access only.</p>
-                                                </div>
-                                            ) : (
-                                                admins.map((adminEmail) => (
-                                                    <div key={adminEmail} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "var(--paper)", border: "1.5px solid var(--ink)", gap: "12px" }}>
-                                                        <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{adminEmail}</span>
-                                                        {adminEmail !== user?.email ? (
-                                                            <button onClick={() => handleRemoveAdmin(adminEmail)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", fontWeight: 700, fontSize: "10px", textTransform: "uppercase", flexShrink: 0 }}>
-                                                                REVOKE
-                                                            </button>
-                                                        ) : (
-                                                            <span style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2em", background: "var(--ink)", color: "var(--paper)", padding: "2px 8px", flexShrink: 0 }}>YOU</span>
-                                                        )}
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
                                 </div>
                             </>
                         )}
