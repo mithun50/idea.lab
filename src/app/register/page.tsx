@@ -1,75 +1,58 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import RegistrationForm from "@/components/RegistrationForm";
-import JoinForm from "@/components/JoinForm";
-import { Lightbulb, Info } from "lucide-react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getSession } from "@/lib/session";
+import Navbar from "@/components/Navbar";
+import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 
 export default function RegisterPage() {
-    const [activeTab, setActiveTab] = useState<"new" | "join">("new");
+  const router = useRouter();
 
-    return (
-        <main className="min-h-screen flex flex-col">
-            {/* Navigation */}
-            <nav className="w-full px-4 py-4 flex justify-between items-center max-w-5xl mx-auto">
-                <Link href="/" className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-violet-500/20">
-                        <Lightbulb className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-bold text-lg tracking-tight brand-font">Idea Lab</span>
-                </Link>
-                <Link href="/status" className="btn-secondary text-sm !py-2 !px-4">
-                    Check Status
-                </Link>
-            </nav>
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    const session = getSession();
+    if (session) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
-            {/* Form Section */}
-            <section className="flex-1 flex items-start justify-center px-4 py-8">
-                <div className="w-full max-w-md fade-in-up">
-                    
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-3xl font-bold mb-2 brand-font">Team Up</h1>
-                        <p className="text-slate-400 text-sm">Create a new pair or join your friend using their invite code.</p>
-                    </div>
+  return (
+    <main className="min-h-screen flex flex-col" style={{ background: "var(--paper)", color: "var(--ink)" }}>
+      <Navbar />
 
-                    {/* Tab Toggle */}
-                    <div className="flex bg-white/5 p-1 rounded-xl mb-6">
-                        <button 
-                            className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${activeTab === "new" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-slate-400 hover:text-white"}`}
-                            onClick={() => setActiveTab("new")}
-                        >
-                            New Registration
-                        </button>
-                        <button 
-                            className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${activeTab === "join" ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-slate-400 hover:text-white"}`}
-                            onClick={() => setActiveTab("join")}
-                        >
-                            Join a Team
-                        </button>
-                    </div>
+      <section className="flex-1 flex items-start justify-center px-4 py-8" style={{ marginTop: 60 }}>
+        <div className="w-full max-w-md fade-in-up">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 style={{ fontFamily: "var(--bebas)", fontSize: "42px", letterSpacing: "0.02em", lineHeight: 1, marginBottom: "8px" }}>
+              Join Idea Lab
+            </h1>
+            <p style={{ color: "var(--muted)", fontSize: "14px" }}>
+              Enter your USN to register. Your details will be auto-filled from the student database.
+            </p>
+          </div>
 
-                    {/* Info Card */}
-                    {activeTab === "new" && (
-                        <div className="glass-card p-4 mb-6 flex items-start gap-3 fade-in-up">
-                            <Info className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
-                            <div className="text-sm text-slate-300">
-                                <p className="font-medium text-cyan-300 mb-1">How pairing works</p>
-                                <p className="text-slate-400">
-                                    Registering will generate a Pair Code. Share this code with your partner from the <strong className="text-violet-300 font-semibold">same section</strong>, and they can use it to join you.
-                                </p>
-                            </div>
-                        </div>
-                    )}
+          {/* Info Card */}
+          <div className="glass-card p-4 mb-6 flex items-start gap-3 fade-in-up">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <div style={{ fontSize: "13px" }}>
+              <p style={{ fontWeight: 700, color: "var(--ink)", marginBottom: "4px" }}>How it works</p>
+              <p style={{ color: "var(--muted)" }}>
+                Register with your USN, then create or join a team of <strong style={{ color: "var(--ink)" }}>6 members</strong> from
+                different branches. Build your own diverse team!
+              </p>
+            </div>
+          </div>
 
-                    {/* Form Component Container */}
-                    <div className="glass-card p-6 md:p-8">
-                        {activeTab === "new" ? <RegistrationForm /> : <JoinForm />}
-                    </div>
-
-                </div>
-            </section>
-        </main>
-    );
+          {/* Registration Form */}
+          <div className="glass-card p-6 md:p-8">
+            <StudentRegistrationForm />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
 }
