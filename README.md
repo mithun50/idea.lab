@@ -1,6 +1,6 @@
 # Idea Lab — DBIT
 
-Team formation platform for first-year students at Don Bosco Institute of Technology, Mumbai. Students self-organize into cross-branch teams of 6 members, with real-time constraint validation and admin oversight.
+Team formation platform for first-year students at Don Bosco Institute of Technology, Bangalore. Students self-organize into cross-branch teams of 6 members, with real-time constraint validation and admin oversight.
 
 ---
 
