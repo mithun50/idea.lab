@@ -38,7 +38,11 @@ Idea Lab enables ~825 first-year students across 7 branches to form cross-discip
 
 ### 1. Registration (`/register`)
 
+Registration uses a 3-step flow with **email OTP verification** via Supabase Auth:
+
 ```
+Step 1: USN Validation
+─────────────────────
 Student enters USN
         |
         v
@@ -52,26 +56,55 @@ Firestore lookup: students/{USN}
   Found   Not found
     |       |
     v       v
-Auto-fill   "USN not found in
-name,       student database.
-email,      Contact admin."
-phone       (blocked)
-    |
+Show email  "USN not found in
+from CSV    student database.
+(read-only) Contact admin."
+    |       (blocked)
     v
-Student confirms details
-    |
+"Send Verification Code" button
+
+Step 2: Email OTP Verification
+──────────────────────────────
+Supabase sends 6-digit code to CSV email
+        |
+        v
+Student enters code
+        |
+        v
+Supabase verifies OTP
+        |
+    +---+---+
+    |       |
+  Valid   Invalid/Expired
+    |       |
+    v       v
+Proceed   "Invalid or expired
+    |      code" (retry/resend)
     v
+60-second resend cooldown
+
+Step 3: Complete Registration (new students)
+────────────────────────────────────────────
+Confirm name, phone (email locked)
+        |
+        v
 Write to registrations/{USN}
-    |
-    v
+        |
+        v
 Create localStorage session
-    |
-    v
+        |
+        v
 Redirect to /dashboard
 ```
 
+**Returning students** (USN found in `registrations`):
+```
+Enter USN → masked email shown → Send OTP → verify → session restored → /dashboard
+```
+
 - USN must exist in the `students` collection (CSV-imported) — strict validation
-- If already registered, creates session from existing data and redirects
+- Email verified via Supabase OTP before registration completes
+- Returning students see masked email (e.g., `r****l@dbit.in`) and skip registration fields
 - Name, email, phone auto-filled from CSV; phone is editable and required (10 digits)
 - Branch and section derived from USN automatically
 
@@ -331,17 +364,25 @@ Example: `1DB25CS075` → Branch: **CSE**, Section: **B**
 ### Registration Flow
 
 ```
-[Student]                    [Firestore]
-    |                            |
-    |-- Enter USN ------------->|
-    |                            |-- Check students/{USN}
-    |<-- Auto-fill data --------|
-    |                            |
-    |-- Confirm & Submit ------>|
-    |                            |-- Write registrations/{USN}
-    |<-- Session created -------|
-    |                            |
-    |-- Redirect /dashboard     |
+[Student]                    [Firestore]              [Supabase Auth]
+    |                            |                         |
+    |-- Enter USN ------------->|                         |
+    |                            |-- Check students/{USN} |
+    |<-- Show email from CSV ---|                         |
+    |                            |                         |
+    |-- "Send OTP" -------------|------------------------>|
+    |                            |       signInWithOtp()   |
+    |<-- 6-digit code to email --|------------------------|
+    |                            |                         |
+    |-- Enter code -------------|------------------------>|
+    |                            |        verifyOtp()      |
+    |<-- Verified --------------|------------------------|
+    |                            |                         |
+    |-- Confirm & Submit ------>|                         |
+    |                            |-- Write registrations/  |
+    |<-- Session created -------|                         |
+    |                            |                         |
+    |-- Redirect /dashboard     |                         |
 ```
 
 ### Team Creation Flow
@@ -537,7 +578,8 @@ Document ID: email with @ and . replaced by _
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Database | Firebase Firestore |
-| Auth | Firebase Authentication (admin only) |
+| Admin Auth | Firebase Authentication (admin only) |
+| Student Auth | Supabase Auth (email OTP verification) |
 | Styling | Custom CSS (Paper & Ink design system) |
 | Icons | Lucide React |
 | Export | xlsx library for .xlsx downloads |
@@ -595,6 +637,7 @@ src/
 │   └── StatusLookup.tsx              # USN lookup with team details
 └── lib/
     ├── firebase.ts            # Firebase config (singleton)
+    ├── supabase.ts            # Supabase client (email OTP auth)
     ├── types.ts               # All TypeScript interfaces
     ├── session.ts             # localStorage session management
     ├── teamConstraints.ts     # Team composition validation
@@ -616,7 +659,7 @@ npm install
 
 # Set up environment variables
 cp .env.example .env.local
-# Fill in Firebase config values
+# Fill in Firebase config values + Supabase config values
 
 # Run development server
 npm run dev
@@ -626,16 +669,31 @@ npm run dev
 
 ## Environment Variables
 
-Create `.env.local` with your Firebase project config:
+Create `.env.local` with your Firebase and Supabase config:
 
 ```env
+# Firebase (Firestore + Admin Auth)
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
+
+# Supabase (Student Email OTP)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+### Supabase Setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Go to **Authentication → Providers → Email** — ensure it's enabled
+3. Go to **Authentication → Email Templates** — customize with "Idea Lab — DBIT" branding
+4. Set OTP expiry to **10 minutes** in Auth settings
+5. Copy the **Project URL** and **anon key** (JWT) into `.env.local`
+
+> Free tier supports 50,000 MAU — well above the ~1,000 student target.
 
 ---
 
@@ -659,7 +717,8 @@ Student sessions use `localStorage` (key: `idealab_session`):
 - `SessionGuard` component wraps authenticated student pages
 - Validates session against Firestore `registrations` on page load
 - "Log out" clears session and redirects to `/`
-- No Firebase Auth for students — admin-only auth
+- Student identity verified via Supabase email OTP during registration/login
+- Firebase Auth used for admin only
 
 ---
 
@@ -669,6 +728,8 @@ Student sessions use `localStorage` (key: `idealab_session`):
 |----------|----------|
 | USN not in CSV | "USN not found in student database" — registration blocked |
 | Network error on USN lookup | "Could not verify USN" — registration blocked |
+| OTP send failure | Error message shown, can retry |
+| Invalid/expired OTP | "Invalid or expired code" — can retry or resend after 60s cooldown |
 | Team full (6 members) | Join/invite blocked |
 | 5th same-branch member | `canAddMember()` returns false |
 | Team complete without EEE/ECE | Warning during building, hard block at 6th member |
