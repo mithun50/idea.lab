@@ -65,7 +65,7 @@ from CSV    student database.
 
 Step 2: Email OTP Verification
 ──────────────────────────────
-Supabase sends 6-digit code to CSV email
+Supabase sends a 6-digit code to CSV email
         |
         v
 Student enters code
