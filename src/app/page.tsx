@@ -86,7 +86,7 @@ export default function Home() {
             </p>
             <div className="hero-cta-group">
               <Link href="/register" className="btn-large">
-                Get Started
+                Register / Login
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
@@ -251,7 +251,7 @@ export default function Home() {
         </div>
         <div className="cta-right">
           <Link href="/register" className="btn-large">
-            Get Started
+            Register / Login
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
@@ -270,7 +270,7 @@ export default function Home() {
         <span className="footer-brand">© 2026 Idea Lab — Don Bosco Institute of Technology, Kumbalagodu, Bangalore</span>
         <span className="footer-brand" style={{ fontSize: "10px", color: "var(--muted)" }}>Made by B Section CSE Students: Harsha N, Mithun Gowda B, Naren V &amp; Nevil Anson Dsouza</span>
         <div className="footer-links">
-          <Link href="/register">Register</Link>
+          <Link href="/register">Register / Login</Link>
           <Link href="/team/browse">Teams</Link>
           <Link href="/status">Status</Link>
         </div>
