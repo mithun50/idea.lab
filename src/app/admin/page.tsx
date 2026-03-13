@@ -582,13 +582,86 @@ export default function AdminPage() {
                                 return nameA.localeCompare(nameB);
                             });
 
+                            const buildExportRows = () => {
+                                const rows: Record<string, string>[] = [];
+                                teamIds.forEach((teamId) => {
+                                    const members = grouped[teamId];
+                                    const tName = teamNamesMap[teamId] || "";
+                                    const tStatus = teamStatusMap[teamId] || "unknown";
+                                    members.forEach((m) => {
+                                        rows.push({
+                                            "Team Name": tName,
+                                            "Team Code": teamId,
+                                            "Status": tStatus,
+                                            "Role": m.teamRole || "",
+                                            "Name": m.name,
+                                            "USN": m.usn,
+                                            "Email": m.email,
+                                            "Phone": m.phone,
+                                            "Branch": m.branch,
+                                            "Section": m.section,
+                                        });
+                                    });
+                                });
+                                unteamed.forEach((s) => {
+                                    rows.push({
+                                        "Team Name": "",
+                                        "Team Code": "",
+                                        "Status": "No Team",
+                                        "Role": "",
+                                        "Name": s.name,
+                                        "USN": s.usn,
+                                        "Email": s.email,
+                                        "Phone": s.phone,
+                                        "Branch": s.branch,
+                                        "Section": s.section,
+                                    });
+                                });
+                                return rows;
+                            };
+
+                            const exportTeamsCSV = () => {
+                                const rows = buildExportRows();
+                                if (rows.length === 0) return;
+                                const headers = Object.keys(rows[0]);
+                                const csv = [
+                                    headers.join(","),
+                                    ...rows.map((r) => headers.map((h) => `"${(r[h] || "").replace(/"/g, '""')}"`).join(",")),
+                                ].join("\n");
+                                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                                const link = document.createElement("a");
+                                link.href = URL.createObjectURL(blob);
+                                link.download = `teams-export-${new Date().toISOString().split("T")[0]}.csv`;
+                                link.click();
+                                URL.revokeObjectURL(link.href);
+                            };
+
+                            const exportTeamsXLS = async () => {
+                                try {
+                                    const { exportSingleSheet } = await import("@/lib/xlsExport");
+                                    exportSingleSheet(buildExportRows(), `teams-export-${new Date().toISOString().split("T")[0]}.xlsx`, "Teams");
+                                } catch {
+                                    exportTeamsCSV();
+                                }
+                            };
+
                             return (
                                 <>
-                                    <header>
-                                        <h1 className="admin-section-title">TEAMS</h1>
-                                        <p className="admin-section-sub">
-                                            {teamIds.length} Teams — {teamsForming} Forming · {teamsFull} Full · {unteamed.length} Without Team
-                                        </p>
+                                    <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: "16px" }}>
+                                        <div>
+                                            <h1 className="admin-section-title">TEAMS</h1>
+                                            <p className="admin-section-sub">
+                                                {teamIds.length} Teams — {teamsForming} Forming · {teamsFull} Full · {unteamed.length} Without Team
+                                            </p>
+                                        </div>
+                                        <div style={{ display: "flex", gap: "8px" }}>
+                                            <button onClick={exportTeamsCSV} className="btn-secondary" style={{ fontSize: "10px", fontWeight: 800, padding: "10px 16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <Download style={{ width: 14, height: 14 }} /> CSV
+                                            </button>
+                                            <button onClick={exportTeamsXLS} className="btn-secondary" style={{ fontSize: "10px", fontWeight: 800, padding: "10px 16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <FileSpreadsheet style={{ width: 14, height: 14 }} /> XLS
+                                            </button>
+                                        </div>
                                     </header>
 
                                     {teamIds.length === 0 ? (
