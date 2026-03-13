@@ -42,6 +42,8 @@ export default function AdminPage() {
     const [resetPhrase, setResetPhrase] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
     const [resetError, setResetError] = useState("");
+    const [clearSupabase, setClearSupabase] = useState(true);
+    const [clearCSV, setClearCSV] = useState(false);
 
     // Admin Management States
     const [admins, setAdmins] = useState<string[]>([]);
@@ -217,10 +219,38 @@ export default function AdminPage() {
                 await batch.commit();
             }
 
-            alert("Database has been successfully reset.");
+            // Clear CSV student data if selected
+            if (clearCSV) {
+                const studentsSnap = await getDocs(collection(db, "students"));
+                if (!studentsSnap.empty) {
+                    // Batch in groups of 450
+                    const docs = studentsSnap.docs;
+                    for (let i = 0; i < docs.length; i += 450) {
+                        const batch = writeBatch(db);
+                        docs.slice(i, i + 450).forEach((docSnap) => batch.delete(docSnap.ref));
+                        await batch.commit();
+                    }
+                }
+            }
+
+            // Clear Supabase auth users if selected
+            if (clearSupabase) {
+                try {
+                    const res = await fetch("/api/admin/clear-supabase", { method: "POST" });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Failed to clear Supabase users.");
+                } catch (err) {
+                    console.error("Supabase cleanup:", err);
+                    // Don't block the reset for this — Firestore data is already cleared
+                }
+            }
+
+            alert("Database has been successfully reset." + (clearCSV ? " CSV data cleared." : "") + (clearSupabase ? " Supabase auth users cleared." : ""));
             setShowResetModal(false);
             setResetPassword("");
             setResetPhrase("");
+            setClearSupabase(true);
+            setClearCSV(false);
             await fetchStudents();
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : "Failed to reset database.";
@@ -697,6 +727,31 @@ export default function AdminPage() {
                         </div>
 
                         <form onSubmit={handleResetDatabase} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                            {/* Cleanup options */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px 16px", background: "rgba(232, 52, 26, 0.04)", border: "1.5px solid var(--line)" }}>
+                                <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", marginBottom: "4px" }}>
+                                    Also Clear
+                                </p>
+                                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={clearSupabase}
+                                        onChange={(e) => setClearSupabase(e.target.checked)}
+                                        style={{ width: 16, height: 16, accentColor: "var(--red)" }}
+                                    />
+                                    Supabase auth users (email verifications)
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={clearCSV}
+                                        onChange={(e) => setClearCSV(e.target.checked)}
+                                        style={{ width: 16, height: 16, accentColor: "var(--red)" }}
+                                    />
+                                    CSV student master data
+                                </label>
+                            </div>
+
                             <div>
                                 <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>Admin Password</label>
                                 <input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} placeholder="REQUIRED" className="input-field" required />

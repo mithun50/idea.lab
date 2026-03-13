@@ -2,9 +2,22 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getSession } from "@/lib/session";
 import Navbar from "@/components/Navbar";
 
 export default function Home() {
+  const router = useRouter();
+
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    const session = getSession();
+    if (session) {
+      router.replace("/dashboard");
+      return;
+    }
+  }, [router]);
+
   // Scroll reveal
   useEffect(() => {
     const obs = new IntersectionObserver(
