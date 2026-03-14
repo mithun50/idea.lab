@@ -230,19 +230,22 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       });
       if (error) throw error;
 
-      // OTP verified — if returning student, restore session immediately
+      // OTP verified — if returning student, restore session from registration data
       if (isReturning) {
+        const regSnap = await getDoc(doc(db, "registrations", usn.toUpperCase()));
+        const regData = regSnap.exists() ? regSnap.data() : null;
         setSession({
           usn: usn.toUpperCase(),
           name: studentInfo.name,
           email: studentInfo.email,
           branch: studentInfo.branch,
           section: studentInfo.section,
-          teamId: null,
-          teamRole: null,
+          teamId: regData?.teamId || null,
+          teamRole: regData?.teamRole || null,
           registeredAt: new Date().toISOString(),
         });
-        onRegistered ? onRegistered() : router.push(redirectTo || "/dashboard");
+        if (onRegistered) { onRegistered(); return; }
+        window.location.href = redirectTo || "/dashboard";
         return;
       }
 
@@ -296,7 +299,8 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
           teamRole: data.teamRole || null,
           registeredAt: new Date().toISOString(),
         });
-        onRegistered ? onRegistered() : router.push(redirectTo || "/dashboard");
+        if (onRegistered) { onRegistered(); return; }
+        window.location.href = redirectTo || "/dashboard";
         return;
       }
 
@@ -326,7 +330,8 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
         registeredAt: new Date().toISOString(),
       });
 
-      onRegistered ? onRegistered() : router.push(redirectTo || "/dashboard");
+      if (onRegistered) { onRegistered(); return; }
+      window.location.href = redirectTo || "/dashboard";
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Something went wrong.");
     } finally {
