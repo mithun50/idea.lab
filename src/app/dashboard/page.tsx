@@ -500,7 +500,7 @@ function DashboardContent({ session }: { session: SessionData }) {
                           setInviteErrors(err);
                         }
                       }}
-                      onKeyDown={(e) => { if (e.key === "Enter") sendInvite(slotIdx); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendInvite(slotIdx); } }}
                       style={{
                         flex: 1, border: inviteErrors[slotIdx] ? "1px solid #E8341A" : "1px solid var(--line)",
                         background: "var(--paper2)", padding: "8px 10px",
