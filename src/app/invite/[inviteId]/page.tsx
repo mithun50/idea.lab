@@ -119,7 +119,7 @@ export default function InvitePage() {
                 </p>
               </div>
               <div className="glass-card p-6 md:p-8">
-                <StudentRegistrationForm redirectTo={`/invite/${inviteId}`} />
+                <StudentRegistrationForm onRegistered={() => setSession(getSession())} />
               </div>
             </div>
           ) : !isTargetUser ? (
