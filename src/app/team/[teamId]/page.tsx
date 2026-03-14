@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
-import { Team, Invite } from "@/lib/types";
+import { Team, Invite, SessionData } from "@/lib/types";
 import { getSession } from "@/lib/session";
 import { generateInviteId } from "@/lib/idGenerator";
 import { getBranchName, getSection } from "@/lib/usnValidator";
@@ -25,8 +25,15 @@ export default function TeamDetailPage() {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [session, setSession] = useState<SessionData | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
-  const session = typeof window !== "undefined" ? getSession() : null;
+  // Read session from localStorage on mount (avoids SSR mismatch)
+  useEffect(() => {
+    setSession(getSession());
+    setSessionChecked(true);
+  }, []);
+
   const isLead = session?.usn === team?.leadUSN;
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,7 +196,7 @@ export default function TeamDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading || !sessionChecked) {
     return (
       <main className="min-h-screen" style={{ background: "var(--paper)" }}>
         <Navbar />
@@ -292,7 +299,7 @@ export default function TeamDetailPage() {
           )}
 
           {/* Non-member view */}
-          {team.isPublic && team.status === "forming" && !session && (
+          {team.isPublic && team.status === "forming" && sessionChecked && !session && (
             /* Not logged in — show inline registration */
             <div className="glass-card p-6 space-y-4">
               <div className="text-center">
