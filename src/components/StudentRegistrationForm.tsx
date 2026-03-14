@@ -11,7 +11,7 @@ import { CheckCircle2, PencilLine, Lock, Loader2, Mail, ShieldCheck, RotateCcw }
 
 type Step = "usn" | "otp" | "register";
 
-export default function StudentRegistrationForm() {
+export default function StudentRegistrationForm({ redirectTo }: { redirectTo?: string } = {}) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("usn");
 
@@ -237,7 +237,7 @@ export default function StudentRegistrationForm() {
           teamRole: null,
           registeredAt: new Date().toISOString(),
         });
-        router.push("/dashboard");
+        router.push(redirectTo || "/dashboard");
         return;
       }
 
@@ -284,7 +284,7 @@ export default function StudentRegistrationForm() {
           teamRole: data.teamRole || null,
           registeredAt: new Date().toISOString(),
         });
-        router.push("/dashboard");
+        router.push(redirectTo || "/dashboard");
         return;
       }
 
@@ -314,7 +314,7 @@ export default function StudentRegistrationForm() {
         registeredAt: new Date().toISOString(),
       });
 
-      router.push("/dashboard");
+      router.push(redirectTo || "/dashboard");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Something went wrong.");
     } finally {

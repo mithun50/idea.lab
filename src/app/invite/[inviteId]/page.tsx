@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Invite, Team } from "@/lib/types";
+import { Invite, Team, SessionData } from "@/lib/types";
 import { getSession } from "@/lib/session";
 import Navbar from "@/components/Navbar";
 import InviteResponseCard from "@/components/InviteResponseCard";
@@ -19,8 +19,15 @@ export default function InvitePage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [session, setSession] = useState<SessionData | null>(() =>
+    typeof window !== "undefined" ? getSession() : null
+  );
 
-  const session = typeof window !== "undefined" ? getSession() : null;
+  // Re-check session on mount (handles redirect back after registration)
+  useEffect(() => {
+    setSession(getSession());
+  }, []);
+
   const isTargetUser = session && invite && session.usn === invite.toUSN;
 
   useEffect(() => {
@@ -101,20 +108,18 @@ export default function InvitePage() {
               </Link>
             </div>
           ) : !session ? (
-            /* Not logged in — show registration form */
+            /* Not logged in — show registration form, hide team details */
             <div className="space-y-6">
               <div className="text-center">
                 <h1 style={{ fontFamily: "var(--bebas)", fontSize: "36px", color: "var(--ink)", lineHeight: 1 }}>
-                  You&apos;re Invited!
+                  You&apos;ve Been Invited!
                 </h1>
                 <p style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>
-                  <strong style={{ color: "var(--ink)" }}>{invite?.fromName}</strong> invited you to join{" "}
-                  <strong style={{ color: "var(--ink)" }}>{team?.name || invite?.teamId}</strong>.
-                  Register first to respond.
+                  Someone invited you to join their team. Register or log in to view and respond to the invite.
                 </p>
               </div>
               <div className="glass-card p-6 md:p-8">
-                <StudentRegistrationForm />
+                <StudentRegistrationForm redirectTo={`/invite/${inviteId}`} />
               </div>
             </div>
           ) : !isTargetUser ? (
