@@ -47,8 +47,13 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
   };
 
   const shareTeamLink = async () => {
-    const url = `${window.location.origin}/team/${team.teamId}`;
-    const text = `You're invited to join ${team.name || team.teamId} on Idea Lab — DBIT, Bangalore!`;
+    const pendingInvite = pendingInvites.find(inv => inv.type === "invite" && inv.status === "pending");
+    const url = pendingInvite
+      ? `${window.location.origin}/invite/${pendingInvite.inviteId}`
+      : `${window.location.origin}/team/${team.teamId}`;
+    const text = pendingInvite
+      ? `You're invited to join ${team.name || team.teamId} on Idea Lab — DBIT, Bangalore!`
+      : `Check out ${team.name || team.teamId} on Idea Lab — DBIT, Bangalore!`;
     if (navigator.share) {
       try {
         await navigator.share({ title: team.name || "Join our team on Idea Lab", text, url });
