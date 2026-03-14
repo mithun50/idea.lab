@@ -69,10 +69,17 @@ export default function TeamDetailPage() {
   const [rejectedRequest, setRejectedRequest] = useState(false);
 
   const handleShare = async () => {
-    const url = window.location.href;
+    // If there's a pending invite for someone, share the invite link; otherwise share team link
+    const pendingInvite = invites.find(inv => inv.type === "invite" && inv.status === "pending");
+    const url = pendingInvite
+      ? `${window.location.origin}/invite/${pendingInvite.inviteId}`
+      : window.location.href;
+    const text = pendingInvite
+      ? `You're invited to join ${team?.name || team?.teamId} on Idea Lab \u2014 Don Bosco Institute of Technology, Kumbalagodu, Bangalore!`
+      : `Check out ${team?.name || team?.teamId} on Idea Lab \u2014 Don Bosco Institute of Technology, Kumbalagodu, Bangalore!`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: team?.name || "Idea Lab Team", text: "Join my team on Idea Lab \u2014 Don Bosco Institute of Technology, Kumbalagodu, Bangalore!", url });
+        await navigator.share({ title: team?.name || "Idea Lab Team", text, url });
         return;
       } catch { /* user cancelled or share failed, fall through to clipboard */ }
     }
