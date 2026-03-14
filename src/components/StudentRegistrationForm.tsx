@@ -205,7 +205,12 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       setStep("otp");
       startCooldown();
     } catch (err) {
-      setOtpError(err instanceof Error ? err.message : "Failed to send verification code.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
+        setOtpError("Too many attempts. Please try again after 5 minutes.");
+      } else {
+        setOtpError(msg || "Failed to send verification code.");
+      }
     } finally {
       setIsSendingOtp(false);
     }
@@ -244,7 +249,12 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       // New student — proceed to registration step
       setStep("register");
     } catch (err) {
-      setOtpError(err instanceof Error ? err.message : "Invalid or expired code. Please try again.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
+        setOtpError("Too many attempts. Please try again after 5 minutes.");
+      } else {
+        setOtpError(msg || "Invalid or expired code. Please try again.");
+      }
     } finally {
       setIsVerifyingOtp(false);
     }
