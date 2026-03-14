@@ -332,9 +332,8 @@ function DashboardContent({ session }: { session: SessionData }) {
     setInviteLoading((prev) => { const l = [...prev]; l[slotIndex] = false; return l; });
   };
 
-  // ── Remove invited member (only pending_invite) ───────────────────────
-  // Bug fix: use updatedMembers.length (leader IS in the array)
-  const removeMember = async (memberUSN: string) => {
+  // ── Remove / kick member ────────────────────────────────────────────
+  const removeMember = async (memberUSN: string, wasApproved: boolean) => {
     if (!team || !session) return;
     const updatedMembers = team.members.filter((m) => m.usn !== memberUSN);
     try {
@@ -343,8 +342,17 @@ function DashboardContent({ session }: { session: SessionData }) {
         memberCount: updatedMembers.length,
         updatedAt: serverTimestamp(),
       });
+
+      // If the member had joined (approved), clear their registration teamId/teamRole
+      if (wasApproved) {
+        await updateDoc(doc(db, "registrations", memberUSN), {
+          teamId: null,
+          teamRole: null,
+        });
+      }
+
       setTeam({ ...team, members: updatedMembers, memberCount: updatedMembers.length });
-      showToast("Removed from team");
+      showToast(wasApproved ? "Member kicked from team" : "Removed from team");
     } catch {
       showToast("Failed to remove member", "err");
     }
@@ -584,11 +592,11 @@ function DashboardContent({ session }: { session: SessionData }) {
                   </div>
                 </div>
 
-                {/* Edit row — only for pending_invite */}
-                {editing && member.status === "pending_invite" && (
+                {/* Edit row — remove invite or kick member */}
+                {editing && (
                   <div style={{ marginTop: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
                     <button
-                      onClick={() => removeMember(member.usn)}
+                      onClick={() => removeMember(member.usn, joined)}
                       style={{
                         fontFamily: "var(--font-body)", fontSize: "11px",
                         background: "none", color: "#E8341A",
@@ -596,9 +604,11 @@ function DashboardContent({ session }: { session: SessionData }) {
                         padding: "6px 12px", cursor: "pointer",
                       }}
                     >
-                      Remove Invite
+                      {joined ? "Kick Member" : "Remove Invite"}
                     </button>
-                    <span style={{ fontSize: "11px", color: "var(--muted)" }}>Invite pending their response</span>
+                    <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                      {joined ? "Remove this member from the team" : "Invite pending their response"}
+                    </span>
                   </div>
                 )}
               </div>
