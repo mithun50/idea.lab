@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -8,14 +8,15 @@ import Navbar from "@/components/Navbar";
 
 export default function Home() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Redirect logged-in users to dashboard
   useEffect(() => {
     const session = getSession();
     if (session) {
       router.replace("/dashboard");
       return;
     }
+    setIsLoggedIn(false);
   }, [router]);
 
   // Scroll reveal
@@ -85,12 +86,21 @@ export default function Home() {
               Register, create or join a team, and build something great together.
             </p>
             <div className="hero-cta-group">
-              <Link href="/register" className="btn-large">
-                Register / Login
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
+              {isLoggedIn ? (
+                <Link href="/dashboard" className="btn-large">
+                  My Dashboard
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ) : (
+                <Link href="/register" className="btn-large">
+                  Register / Login
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              )}
               <Link href="/team/browse" className="btn-outline">
                 Browse Teams
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -250,12 +260,21 @@ export default function Home() {
           <p className="cta-sub">Registration takes under a minute. Create or join a team and start collaborating.</p>
         </div>
         <div className="cta-right">
-          <Link href="/register" className="btn-large">
-            Register / Login
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard" className="btn-large">
+              My Dashboard
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </Link>
+          ) : (
+            <Link href="/register" className="btn-large">
+              Register / Login
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </Link>
+          )}
           <Link href="/team/browse" className="btn-outline">
             Browse Teams
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

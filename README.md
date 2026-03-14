@@ -36,6 +36,12 @@ Idea Lab enables ~825 first-year students across 7 branches to form cross-discip
 
 ## Student Flow
 
+### 0. Landing Page (`/`)
+
+- Logged-in users (session in localStorage) are **redirected to `/dashboard`** automatically
+- Hero CTA and bottom CTA show "My Dashboard" if logged in, "Register / Login" if not
+- Browse Teams link always visible
+
 ### 1. Registration (`/register`)
 
 Registration uses a 3-step flow with **email OTP verification** via Supabase Auth:
@@ -110,11 +116,33 @@ Enter USN → masked email shown → Send OTP → verify → session restored �
 
 ### 2. Dashboard (`/dashboard`)
 
-The student home page showing:
-- Welcome message with name and branch
-- Current team status (if on a team)
-- Pending invites received (accept/reject)
-- Quick actions: Create Team, Browse Teams, View Team
+Protected by `SessionGuard` — validates session against Firestore on load and syncs stale `teamId`/`teamRole`.
+
+**Welcome Header** — first-name greeting with branch, section, and USN.
+
+**Pending Invites** — shows all incoming team invites with "Respond" links.
+
+**Leader Panel** (when user is team lead):
+- Team name heading with team ID badge
+- Leader avatar card with initials, name, USN, branch info
+- `TeamStatusBadge` and `BranchConstraintIndicator` shared components
+- Member list with Joined/Waiting status indicators
+- **Edit mode** toggle to manage pending invites:
+  - Remove pending invites
+  - Direct invite up to 3 friends by USN (with branch constraint validation via `canAddMember()`)
+  - USN lookup checks `registrations` first, then `students` fallback
+- Open slot indicators showing remaining capacity
+- Progress bar visualizing team completion (joined vs waiting vs total)
+- Team ID sharing note for browse discoverability
+
+**Member Panel** (when user is a non-lead team member):
+- Team name, ID, member count, and status badge
+- Branch constraint indicator
+- Link to full team page
+
+**No Team Card** — shown when user has no team, with Create Team and Browse Teams actions.
+
+**Quick Actions** — grid of cards linking to Create Team, Browse Teams, and Check Status.
 
 ### 3. Create Team (`/team/create`)
 
@@ -151,12 +179,17 @@ Redirect to /team/{TEAM-XXXX}
 - Team starts with 1 member (the lead) in "forming" status
 - Public teams appear in browse; private teams are invite-only
 
-### 4. Team Management (`/team/[teamId]`)
+### 4. Team Management (`/team/[teamId]` + Dashboard)
 
 **Team Lead can:**
-- Invite members by USN (creates invite doc, type: "invite")
+- Invite up to 3 members directly by USN from the Dashboard (edit mode)
+  - Branch constraint validation via `canAddMember()` before sending
+  - USN lookup checks `registrations` → `students` fallback
+  - Uses shared `generateInviteId()` (unambiguous charset)
+- Invite members by USN from the team page (creates invite doc, type: "invite")
 - Approve/reject join requests from browse page
 - See real-time constraint indicator (branch slots, EEE/ECE check)
+- Remove pending invites in edit mode
 
 **All Members can:**
 - View team members with status badges (Joined/Invited/Requested)
@@ -724,6 +757,7 @@ Student sessions use `localStorage` (key: `idealab_session`):
 
 - `SessionGuard` component wraps authenticated student pages
 - Validates session against Firestore `registrations` on page load
+- Dashboard syncs stale `teamId`/`teamRole` from Firestore via `updateSessionTeam()`
 - "Log out" clears session and redirects to `/`
 - Student identity verified via Supabase email OTP during registration/login
 - Firebase Auth used for admin only
