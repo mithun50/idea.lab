@@ -161,17 +161,19 @@ export default function TeamDetailPage() {
               <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)" }}>
                 Team Members ({approvedMembers.length}/6)
               </p>
-              {/* Share team link */}
-              <button
-                onClick={handleShare}
-                style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: copied ? "#10b981" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", transition: "color 0.2s" }}
-              >
-                {copied ? (
-                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg> Copied!</>
-                ) : (
-                  <><Share2 style={{ width: 12, height: 12 }} /> Share</>
-                )}
-              </button>
+              {/* Share team link — only for team members */}
+              {session && team.members.some(m => m.usn === session.usn) && (
+                <button
+                  onClick={handleShare}
+                  style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: copied ? "#10b981" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", transition: "color 0.2s" }}
+                >
+                  {copied ? (
+                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg> Copied!</>
+                  ) : (
+                    <><Share2 style={{ width: 12, height: 12 }} /> Share</>
+                  )}
+                </button>
+              )}
             </div>
             <TeamMemberList members={team.members} leadUSN={team.leadUSN} />
           </div>

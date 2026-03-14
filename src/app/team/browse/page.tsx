@@ -18,6 +18,7 @@ export default function BrowseTeamsPage() {
   const [requestingTeam, setRequestingTeam] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [teamFormationOpen, setTeamFormationOpen] = useState<boolean | null>(null);
+  const [rejectedTeamIds, setRejectedTeamIds] = useState<Set<string>>(new Set());
 
   const session = typeof window !== "undefined" ? getSession() : null;
 
@@ -37,6 +38,27 @@ export default function BrowseTeamsPage() {
     };
     checkGate();
   }, []);
+
+  // Fetch rejected requests for current user
+  useEffect(() => {
+    if (!session) return;
+    const fetchRejected = async () => {
+      try {
+        const rejQuery = query(
+          collection(db, "invites"),
+          where("fromUSN", "==", session.usn),
+          where("type", "==", "request"),
+          where("status", "==", "rejected")
+        );
+        const snap = await getDocs(rejQuery);
+        const ids = new Set<string>();
+        snap.forEach(d => ids.add(d.data().teamId));
+        setRejectedTeamIds(ids);
+      } catch { /* ignore */ }
+    };
+    fetchRejected();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.usn]);
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -223,6 +245,7 @@ export default function BrowseTeamsPage() {
                   onRequestJoin={handleRequestJoin}
                   isRequesting={requestingTeam === team.teamId}
                   currentUSN={session?.usn}
+                  isRejected={rejectedTeamIds.has(team.teamId)}
                 />
               ))}
             </div>

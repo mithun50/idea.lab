@@ -93,14 +93,6 @@ export default function InvitePage() {
     }
   }, [session, sessionChecked, fetchInvite]);
 
-  // Called after user registers/logs in inline
-  const handleRegistered = () => {
-    const s = getSession();
-    setSessionState(s);
-    setLoading(true);
-    setError("");
-  };
-
   const isTargetUser = session && invite && session.usn === invite.toUSN;
 
   return (
@@ -134,7 +126,7 @@ export default function InvitePage() {
                 </p>
               </div>
               <div className="glass-card p-6 md:p-8">
-                <StudentRegistrationForm onRegistered={handleRegistered} />
+                <StudentRegistrationForm onRegistered={() => window.location.reload()} />
               </div>
             </div>
           ) : !isTargetUser ? (

@@ -38,6 +38,7 @@ function DashboardContent({ session }: { session: SessionData }) {
   const [pendingInvites, setPendingInvites] = useState<Invite[]>([]);
   const [joinRequests, setJoinRequests] = useState<Invite[]>([]);
   const [rejectedRequests, setRejectedRequests] = useState<Invite[]>([]);
+  const [memberDetails, setMemberDetails] = useState<Record<string, { email: string; phone: string }>>({});
   const [loading, setLoading] = useState(true);
 
   // Edit-mode state (leader only)
@@ -81,6 +82,26 @@ function DashboardContent({ session }: { session: SessionData }) {
             createdAt: data.createdAt?.toDate() || null,
             updatedAt: data.updatedAt?.toDate() || null,
           });
+        }
+      }
+
+      // Fetch member details (email, phone) for leader view
+      if (session.teamRole === "lead" && session.teamId) {
+        const teamDoc2 = await getDoc(doc(db, "teams", session.teamId));
+        if (teamDoc2.exists()) {
+          const members = teamDoc2.data().members || [];
+          const details: Record<string, { email: string; phone: string }> = {};
+          await Promise.all(
+            members.map(async (m: { usn: string }) => {
+              if (m.usn === session.usn) return;
+              const regDoc = await getDoc(doc(db, "registrations", m.usn));
+              if (regDoc.exists()) {
+                const rd = regDoc.data();
+                details[m.usn] = { email: rd.email || "", phone: rd.phone || "" };
+              }
+            })
+          );
+          setMemberDetails(details);
         }
       }
 
@@ -546,6 +567,11 @@ function DashboardContent({ session }: { session: SessionData }) {
                     <p style={{ fontSize: "11px", color: "var(--muted)", fontFamily: "monospace", marginTop: "1px" }}>
                       {member.usn} · {member.branch} Sec {member.section}
                     </p>
+                    {memberDetails[member.usn] && (
+                      <p style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
+                        {memberDetails[member.usn].email}{memberDetails[member.usn].phone ? ` · ${memberDetails[member.usn].phone}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div style={{
                     display: "flex", alignItems: "center", gap: "5px", flexShrink: 0,

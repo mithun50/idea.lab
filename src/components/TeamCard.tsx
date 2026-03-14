@@ -14,9 +14,10 @@ interface TeamCardProps {
   onRequestJoin?: (teamId: string) => void;
   isRequesting?: boolean;
   currentUSN?: string;
+  isRejected?: boolean;
 }
 
-export default function TeamCard({ team, onRequestJoin, isRequesting, currentUSN }: TeamCardProps) {
+export default function TeamCard({ team, onRequestJoin, isRequesting, currentUSN, isRejected }: TeamCardProps) {
   const approvedMembers = team.members.filter(m => m.status === "approved");
   const openSlots = 6 - approvedMembers.length;
   const isMember = currentUSN ? team.members.some(m => m.usn === currentUSN) : false;
@@ -78,7 +79,17 @@ export default function TeamCard({ team, onRequestJoin, isRequesting, currentUSN
           {approvedMembers.length}/6 members · {openSlots} open
         </span>
 
-        {onRequestJoin && !isMember && team.status === "forming" && (
+        {isRejected && !isMember && (
+          <span style={{
+            fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
+            padding: "4px 10px", borderRadius: "20px",
+            background: "rgba(232,52,26,0.08)", color: "var(--red)",
+          }}>
+            Request Rejected
+          </span>
+        )}
+
+        {onRequestJoin && !isMember && !isRejected && team.status === "forming" && (
           <button
             onClick={() => onRequestJoin(team.teamId)}
             disabled={isRequesting}
