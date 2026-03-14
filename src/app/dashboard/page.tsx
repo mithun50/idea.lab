@@ -14,6 +14,7 @@ import Navbar from "@/components/Navbar";
 import SessionGuard from "@/components/SessionGuard";
 import TeamStatusBadge from "@/components/TeamStatusBadge";
 import BranchConstraintIndicator from "@/components/BranchConstraintIndicator";
+import JoinRequestManager from "@/components/JoinRequestManager";
 import Link from "next/link";
 import { Users, Plus, Search, Mail, ArrowRight, Lightbulb } from "lucide-react";
 
@@ -35,6 +36,7 @@ function initials(name: string): string {
 function DashboardContent({ session }: { session: SessionData }) {
   const [team, setTeam] = useState<Team | null>(null);
   const [pendingInvites, setPendingInvites] = useState<Invite[]>([]);
+  const [joinRequests, setJoinRequests] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Edit-mode state (leader only)
@@ -107,6 +109,35 @@ function DashboardContent({ session }: { session: SessionData }) {
         });
       });
       setPendingInvites(invites);
+
+      // Fetch pending join requests for team leaders
+      if (session.teamRole === "lead" && session.teamId) {
+        const reqQuery = query(
+          collection(db, "invites"),
+          where("teamId", "==", session.teamId),
+          where("status", "==", "pending"),
+          where("type", "==", "request")
+        );
+        const reqSnap = await getDocs(reqQuery);
+        const reqs: Invite[] = [];
+        reqSnap.forEach((d) => {
+          const r = d.data();
+          reqs.push({
+            inviteId: r.inviteId,
+            type: r.type,
+            teamId: r.teamId,
+            teamName: r.teamName,
+            fromUSN: r.fromUSN,
+            fromName: r.fromName,
+            toUSN: r.toUSN,
+            toName: r.toName,
+            status: r.status,
+            createdAt: r.createdAt?.toDate() || null,
+            respondedAt: r.respondedAt?.toDate() || null,
+          });
+        });
+        setJoinRequests(reqs);
+      }
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -529,6 +560,20 @@ function DashboardContent({ session }: { session: SessionData }) {
                 </div>
               );
             })
+          )}
+
+          {/* Join Requests (for leader) */}
+          {joinRequests.length > 0 && team && (
+            <div>
+              <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500, marginBottom: "8px" }}>
+                Join Requests ({joinRequests.length})
+              </p>
+              <JoinRequestManager
+                team={team}
+                pendingRequests={joinRequests}
+                onRefresh={fetchData}
+              />
+            </div>
           )}
 
           {/* Open slot indicators */}
