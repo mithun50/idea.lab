@@ -592,25 +592,23 @@ function DashboardContent({ session }: { session: SessionData }) {
                   </div>
                 </div>
 
-                {/* Edit row — remove invite or kick member */}
-                {editing && (
-                  <div style={{ marginTop: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
-                    <button
-                      onClick={() => removeMember(member.usn, joined)}
-                      style={{
-                        fontFamily: "var(--font-body)", fontSize: "11px",
-                        background: "none", color: "#E8341A",
-                        border: "1px solid rgba(232,52,26,0.3)", borderRadius: "3px",
-                        padding: "6px 12px", cursor: "pointer",
-                      }}
-                    >
-                      {joined ? "Kick Member" : "Remove Invite"}
-                    </button>
-                    <span style={{ fontSize: "11px", color: "var(--muted)" }}>
-                      {joined ? "Remove this member from the team" : "Invite pending their response"}
-                    </span>
-                  </div>
-                )}
+                {/* Kick / remove — always visible for leader */}
+                <div style={{ marginTop: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
+                  <button
+                    onClick={() => {
+                      if (joined && !confirm(`Kick ${member.name} from the team?`)) return;
+                      removeMember(member.usn, joined);
+                    }}
+                    style={{
+                      fontFamily: "var(--font-body)", fontSize: "11px",
+                      background: "none", color: "#E8341A",
+                      border: "1px solid rgba(232,52,26,0.3)", borderRadius: "3px",
+                      padding: "6px 12px", cursor: "pointer",
+                    }}
+                  >
+                    {joined ? "Kick" : "Remove Invite"}
+                  </button>
+                </div>
               </div>
             );
           })}
