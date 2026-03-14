@@ -16,7 +16,7 @@ import TeamStatusBadge from "@/components/TeamStatusBadge";
 import BranchConstraintIndicator from "@/components/BranchConstraintIndicator";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import Link from "next/link";
-import { Users, Plus, Search, Mail, ArrowRight, Lightbulb } from "lucide-react";
+import { Users, Plus, Search, Mail, ArrowRight, Lightbulb, XCircle } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const MAX_DIRECT_INVITES = 3;
@@ -37,6 +37,7 @@ function DashboardContent({ session }: { session: SessionData }) {
   const [team, setTeam] = useState<Team | null>(null);
   const [pendingInvites, setPendingInvites] = useState<Invite[]>([]);
   const [joinRequests, setJoinRequests] = useState<Invite[]>([]);
+  const [rejectedRequests, setRejectedRequests] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Edit-mode state (leader only)
@@ -138,6 +139,41 @@ function DashboardContent({ session }: { session: SessionData }) {
         });
         setJoinRequests(reqs);
       }
+
+      // Fetch rejected requests/invites for this student
+      const rejReqQuery = query(
+        collection(db, "invites"),
+        where("fromUSN", "==", session.usn),
+        where("status", "==", "rejected"),
+        where("type", "==", "request")
+      );
+      const rejInvQuery = query(
+        collection(db, "invites"),
+        where("toUSN", "==", session.usn),
+        where("status", "==", "rejected"),
+        where("type", "==", "invite")
+      );
+      const [rejReqSnap, rejInvSnap] = await Promise.all([getDocs(rejReqQuery), getDocs(rejInvQuery)]);
+      const rejected: Invite[] = [];
+      const parseInvite = (d: { data: () => Record<string, unknown> }) => {
+        const r = d.data();
+        return {
+          inviteId: r.inviteId as string,
+          type: r.type as "invite" | "request",
+          teamId: r.teamId as string,
+          teamName: (r.teamName as string) || null,
+          fromUSN: r.fromUSN as string,
+          fromName: r.fromName as string,
+          toUSN: r.toUSN as string,
+          toName: r.toName as string,
+          status: r.status as Invite["status"],
+          createdAt: (r.createdAt as { toDate: () => Date })?.toDate() || null,
+          respondedAt: (r.respondedAt as { toDate: () => Date })?.toDate() || null,
+        };
+      };
+      rejReqSnap.forEach((d) => rejected.push(parseInvite(d)));
+      rejInvSnap.forEach((d) => rejected.push(parseInvite(d)));
+      setRejectedRequests(rejected);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -369,6 +405,46 @@ function DashboardContent({ session }: { session: SessionData }) {
                 >
                   Respond <ArrowRight style={{ width: 12, height: 12 }} />
                 </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rejected Requests/Invites */}
+      {rejectedRequests.length > 0 && (
+        <div className="glass-card" style={{ padding: "20px", borderColor: "var(--muted)", borderLeftWidth: "4px" }}>
+          <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <XCircle style={{ width: 14, height: 14 }} />
+            Rejected ({rejectedRequests.length})
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {rejectedRequests.map((inv) => (
+              <div
+                key={inv.inviteId}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", border: "1px solid var(--line)", background: "var(--paper2)",
+                  opacity: 0.7,
+                }}
+              >
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: "13px", color: "var(--ink)" }}>
+                    {inv.teamName || inv.teamId}
+                  </p>
+                  <p style={{ fontSize: "11px", color: "var(--muted)" }}>
+                    {inv.type === "request"
+                      ? "Your join request was rejected"
+                      : `Invite from ${inv.fromName} — declined`}
+                  </p>
+                </div>
+                <span style={{
+                  fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
+                  padding: "4px 10px", borderRadius: "20px",
+                  background: "rgba(232,52,26,0.08)", color: "var(--red)",
+                }}>
+                  Rejected
+                </span>
               </div>
             ))}
           </div>
