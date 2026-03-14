@@ -1,21 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSession } from "@/lib/session";
 import Navbar from "@/components/Navbar";
 import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
 
-  // If already logged in, redirect to dashboard
+  // If already logged in, redirect to destination or dashboard
   useEffect(() => {
     const session = getSession();
     if (session) {
-      router.replace("/dashboard");
+      router.replace(redirectTo || "/dashboard");
     }
-  }, [router]);
+  }, [router, redirectTo]);
 
   return (
     <main className="min-h-screen flex flex-col" style={{ background: "var(--paper)", color: "var(--ink)" }}>
@@ -49,7 +51,7 @@ export default function RegisterPage() {
 
           {/* Registration Form */}
           <div className="glass-card p-6 md:p-8">
-            <StudentRegistrationForm />
+            <StudentRegistrationForm redirectTo={redirectTo || undefined} />
           </div>
         </div>
       </section>

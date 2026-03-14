@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -8,7 +8,6 @@ import { Invite, Team, SessionData } from "@/lib/types";
 import { getSession } from "@/lib/session";
 import Navbar from "@/components/Navbar";
 import InviteResponseCard from "@/components/InviteResponseCard";
-import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 import Link from "next/link";
 
 export default function InvitePage() {
@@ -19,74 +18,80 @@ export default function InvitePage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [session, setSession] = useState<SessionData | null>(() =>
-    typeof window !== "undefined" ? getSession() : null
-  );
+  const [session, setSession] = useState<SessionData | null>(null);
 
-  // Re-check session on mount (handles redirect back after registration)
+  // Check session first — redirect to register if not logged in
   useEffect(() => {
-    setSession(getSession());
-  }, []);
+    const s = getSession();
+    if (!s) {
+      router.replace(`/register?redirect=/invite/${inviteId}`);
+      return;
+    }
+    setSession(s);
+  }, [inviteId, router]);
+
+  // Only fetch invite data after session is confirmed
+  const fetchInvite = useCallback(async () => {
+    if (!session) return;
+    try {
+      const inviteDoc = await getDoc(doc(db, "invites", inviteId));
+      if (!inviteDoc.exists()) {
+        setError("Invite not found or has expired.");
+        setLoading(false);
+        return;
+      }
+
+      const data = inviteDoc.data();
+      const inv: Invite = {
+        inviteId: data.inviteId,
+        type: data.type,
+        teamId: data.teamId,
+        teamName: data.teamName,
+        fromUSN: data.fromUSN,
+        fromName: data.fromName,
+        toUSN: data.toUSN,
+        toName: data.toName,
+        status: data.status,
+        createdAt: data.createdAt?.toDate() || null,
+        respondedAt: data.respondedAt?.toDate() || null,
+      };
+      setInvite(inv);
+
+      if (inv.status !== "pending") {
+        setError(`This invite has already been ${inv.status}.`);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch team
+      const teamDoc = await getDoc(doc(db, "teams", inv.teamId));
+      if (teamDoc.exists()) {
+        const td = teamDoc.data();
+        setTeam({
+          teamId: td.teamId,
+          name: td.name || null,
+          leadUSN: td.leadUSN,
+          members: td.members || [],
+          memberCount: td.memberCount || 0,
+          status: td.status,
+          branchDistribution: td.branchDistribution || {},
+          isPublic: td.isPublic ?? true,
+          createdAt: td.createdAt?.toDate() || null,
+          updatedAt: td.updatedAt?.toDate() || null,
+        });
+      }
+    } catch {
+      setError("Failed to load invite.");
+    } finally {
+      setLoading(false);
+    }
+  }, [inviteId, session]);
+
+  useEffect(() => {
+    fetchInvite();
+  }, [fetchInvite]);
 
   const isTargetUser = session && invite && session.usn === invite.toUSN;
-
-  useEffect(() => {
-    const fetchInvite = async () => {
-      try {
-        const inviteDoc = await getDoc(doc(db, "invites", inviteId));
-        if (!inviteDoc.exists()) {
-          setError("Invite not found or has expired.");
-          setLoading(false);
-          return;
-        }
-
-        const data = inviteDoc.data();
-        const inv: Invite = {
-          inviteId: data.inviteId,
-          type: data.type,
-          teamId: data.teamId,
-          teamName: data.teamName,
-          fromUSN: data.fromUSN,
-          fromName: data.fromName,
-          toUSN: data.toUSN,
-          toName: data.toName,
-          status: data.status,
-          createdAt: data.createdAt?.toDate() || null,
-          respondedAt: data.respondedAt?.toDate() || null,
-        };
-        setInvite(inv);
-
-        if (inv.status !== "pending") {
-          setError(`This invite has already been ${inv.status}.`);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch team
-        const teamDoc = await getDoc(doc(db, "teams", inv.teamId));
-        if (teamDoc.exists()) {
-          const td = teamDoc.data();
-          setTeam({
-            teamId: td.teamId,
-            name: td.name || null,
-            leadUSN: td.leadUSN,
-            members: td.members || [],
-            memberCount: td.memberCount || 0,
-            status: td.status,
-            branchDistribution: td.branchDistribution || {},
-            isPublic: td.isPublic ?? true,
-            createdAt: td.createdAt?.toDate() || null,
-            updatedAt: td.updatedAt?.toDate() || null,
-          });
-        }
-      } catch {
-        setError("Failed to load invite.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInvite();
-  }, [inviteId]);
 
   return (
     <main className="min-h-screen" style={{ background: "var(--paper)", color: "var(--ink)" }}>
@@ -107,21 +112,6 @@ export default function InvitePage() {
                 Go Home
               </Link>
             </div>
-          ) : !session ? (
-            /* Not logged in — show registration form, hide team details */
-            <div className="space-y-6">
-              <div className="text-center">
-                <h1 style={{ fontFamily: "var(--bebas)", fontSize: "36px", color: "var(--ink)", lineHeight: 1 }}>
-                  You&apos;ve Been Invited!
-                </h1>
-                <p style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>
-                  Someone invited you to join their team. Register or log in to view and respond to the invite.
-                </p>
-              </div>
-              <div className="glass-card p-6 md:p-8">
-                <StudentRegistrationForm onRegistered={() => setSession(getSession())} />
-              </div>
-            </div>
           ) : !isTargetUser ? (
             /* Logged in but not the target */
             <div className="glass-card" style={{ padding: "32px", textAlign: "center" }}>
@@ -129,7 +119,7 @@ export default function InvitePage() {
                 This invite is for {invite?.toUSN}
               </p>
               <p style={{ color: "var(--muted)", fontSize: "13px" }}>
-                You&apos;re logged in as {session.usn}. This invite was sent to a different student.
+                You&apos;re logged in as {session?.usn}. This invite was sent to a different student.
               </p>
               <Link href="/dashboard" className="btn-secondary" style={{ display: "inline-flex", marginTop: "16px" }}>
                 Go to Dashboard
@@ -148,7 +138,6 @@ export default function InvitePage() {
                 team={team}
                 sessionUSN={session.usn}
                 onResponse={() => {
-                  // Refresh after response
                   router.refresh();
                 }}
               />

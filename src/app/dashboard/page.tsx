@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   collection, query, where, getDocs, doc, getDoc,
-  updateDoc, arrayUnion, addDoc, serverTimestamp,
+  updateDoc, arrayUnion, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Team, Invite, SessionData, Registration } from "@/lib/types";
@@ -124,20 +124,12 @@ function DashboardContent({ session }: { session: SessionData }) {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // ── USN Lookup — registrations first, then students fallback ──────────
+  // ── USN Lookup — only registered students can be invited ──────────
   const lookupUSN = async (usn: string): Promise<Registration | null> => {
     const clean = usn.trim().toUpperCase();
     try {
       const regSnap = await getDoc(doc(db, "registrations", clean));
       if (regSnap.exists()) return regSnap.data() as Registration;
-      const stuSnap = await getDoc(doc(db, "students", clean));
-      if (stuSnap.exists()) {
-        const d = stuSnap.data();
-        return {
-          usn: d.usn, name: d.name, email: d.email || "", phone: d.phone || "",
-          branch: d.branch, section: d.section, teamId: null, teamRole: null, registeredAt: null,
-        };
-      }
       return null;
     } catch {
       return null;
@@ -171,7 +163,7 @@ function DashboardContent({ session }: { session: SessionData }) {
 
     const student = await lookupUSN(usn);
     if (!student) {
-      setInviteErrors((prev) => { const e = [...prev]; e[slotIndex] = "USN not found in database"; return e; });
+      setInviteErrors((prev) => { const e = [...prev]; e[slotIndex] = "Student not registered yet. They must register first."; return e; });
       setInviteLoading((prev) => { const l = [...prev]; l[slotIndex] = false; return l; });
       return;
     }
@@ -199,7 +191,7 @@ function DashboardContent({ session }: { session: SessionData }) {
         status: "pending_invite" as const,
       };
 
-      await addDoc(collection(db, "invites"), {
+      await setDoc(doc(db, "invites", inviteId), {
         inviteId,
         type: "invite",
         teamId: team.teamId,
