@@ -9,7 +9,7 @@ import { canAddMember } from "@/lib/teamConstraints";
 import { createNotification } from "@/lib/notifications";
 import { getSession } from "@/lib/session";
 import { Team, Invite } from "@/lib/types";
-import { Send, X, Loader2, Link2, Check } from "lucide-react";
+import { Send, X, Loader2, Link2, Check, Share2 } from "lucide-react";
 
 interface InviteManagerProps {
   team: Team;
@@ -24,7 +24,9 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
   const [success, setSuccess] = useState("");
   const [lastInviteId, setLastInviteId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const copyInviteLink = async (inviteId: string) => {
     const url = `${window.location.origin}/invite/${inviteId}`;
@@ -42,6 +44,21 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
     setCopiedId(inviteId);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const shareTeamLink = async () => {
+    const url = `${window.location.origin}/team/${team.teamId}`;
+    const text = `You're invited to join ${team.name || team.teamId} on Idea Lab — DBIT, Bangalore!`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: team.name || "Join our team on Idea Lab", text, url });
+        return;
+      } catch { /* user cancelled or share failed, fall through to clipboard */ }
+    }
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    setLinkCopied(true);
+    if (linkTimer.current) clearTimeout(linkTimer.current);
+    linkTimer.current = setTimeout(() => setLinkCopied(false), 2500);
   };
 
   const handleSendInvite = async (e: React.FormEvent) => {
@@ -170,6 +187,56 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* Share Invite Link */}
+      <div style={{
+        padding: "14px 16px",
+        border: "1.5px dashed var(--line)",
+        background: "var(--paper2)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)", margin: 0 }}>
+              Share Invite Link
+            </p>
+            <p style={{ fontSize: "11px", color: "var(--muted)", margin: "3px 0 0", lineHeight: 1.4 }}>
+              Anyone with this link can request to join
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={shareTeamLink}
+            className="btn-primary"
+            style={{
+              padding: "10px 18px",
+              whiteSpace: "nowrap",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              fontWeight: 700,
+              transition: "all 0.2s",
+              ...(linkCopied ? { background: "#059669", borderColor: "#059669" } : {}),
+            }}
+          >
+            {linkCopied ? (
+              <><Check style={{ width: 14, height: 14 }} /> Copied!</>
+            ) : (
+              <><Share2 style={{ width: 14, height: 14 }} /> Share</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ flex: 1, height: "1px", background: "var(--line)" }} />
+        <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)" }}>or invite by USN</span>
+        <div style={{ flex: 1, height: "1px", background: "var(--line)" }} />
+      </div>
+
       {/* Send Invite Form */}
       <form onSubmit={handleSendInvite} style={{ display: "flex", gap: "8px" }}>
         <input
