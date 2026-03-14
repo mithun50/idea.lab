@@ -682,6 +682,7 @@ Minimal, print-inspired aesthetic using CSS custom properties:
 
 ```
 src/
+├── middleware.ts             # Origin allowlist for all /api/* endpoints
 ├── app/
 │   ├── layout.tsx             # Root layout (fonts, global CSS)
 │   ├── page.tsx               # Landing page
@@ -772,6 +773,10 @@ BREVO_SENDER_EMAIL=
 # Each Brevo free account gets 300 emails/day. Add multiple for higher capacity.
 # Format: apikey:sender@email.com,apikey2:sender2@email.com
 # BREVO_KEYS=xkeysib-key1:sender1@gmail.com,xkeysib-key2:sender2@gmail.com
+
+# Origin allowlist for all API endpoints (comma-separated)
+# Only these domains can call /api/* routes — blocks abuse from external sites
+# ALLOWED_ORIGINS=https://idealab.dfriendsclub.in,http://localhost:3000
 ```
 
 ### Brevo Setup
@@ -783,6 +788,16 @@ BREVO_SENDER_EMAIL=
 5. For higher volume, create multiple Brevo accounts and use `BREVO_KEYS` for round-robin
 
 > **Fallback mechanism**: If `BREVO_KEYS` is set, the system distributes emails across keys in round-robin fashion. If one key fails (rate limit, error), it automatically tries the next key.
+
+### API Security
+
+All `/api/*` endpoints are protected by origin-checking middleware (`src/middleware.ts`):
+
+- Only requests from allowed domains are accepted (checked via `Origin`/`Referer` header)
+- External sites, Postman, and direct curl calls are blocked with `403 Forbidden`
+- Server-side calls (SSR, API-to-API on same host) are allowed automatically
+- Defaults: `localhost:3000`, `localhost:3001`, `idealab.dfriendsclub.in`
+- Configure via `ALLOWED_ORIGINS` env var for custom domains
 
 ---
 
