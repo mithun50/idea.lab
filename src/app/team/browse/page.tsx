@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimest
 import { Team, Invite } from "@/lib/types";
 import { getSession } from "@/lib/session";
 import { generateInviteId } from "@/lib/idGenerator";
+import { createNotification } from "@/lib/notifications";
 import { getBranchName, getSection } from "@/lib/usnValidator";
 import Navbar from "@/components/Navbar";
 import TeamCard from "@/components/TeamCard";
@@ -151,6 +152,19 @@ export default function BrowseTeamsPage() {
       await updateDoc(doc(db, "teams", teamId), {
         members: [...team.members, newMember],
         updatedAt: serverTimestamp(),
+      });
+
+      // Notify the team leader
+      createNotification({
+        userId: team.leadUSN,
+        type: "request_received",
+        title: "Join Request",
+        message: `${session.name} wants to join ${team.name || team.teamId}`,
+        teamId: team.teamId,
+        teamName: team.name || null,
+        fromUSN: session.usn,
+        fromName: session.name,
+        linkUrl: "/dashboard",
       });
 
       setMessage({ type: "success", text: "Request sent! The team lead will review it." });

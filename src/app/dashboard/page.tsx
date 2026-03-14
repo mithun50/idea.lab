@@ -10,6 +10,7 @@ import { Team, Invite, SessionData, Registration } from "@/lib/types";
 import { getSession, updateSessionTeam } from "@/lib/session";
 import { generateInviteId } from "@/lib/idGenerator";
 import { canAddMember } from "@/lib/teamConstraints";
+import { createNotification } from "@/lib/notifications";
 import Navbar from "@/components/Navbar";
 import SessionGuard from "@/components/SessionGuard";
 import TeamStatusBadge from "@/components/TeamStatusBadge";
@@ -319,6 +320,19 @@ function DashboardContent({ session }: { session: SessionData }) {
 
       setInviteInputs((prev) => { const n = [...prev]; n[slotIndex] = ""; return n; });
 
+      // Notify the invited student
+      createNotification({
+        userId: student.usn,
+        type: "invite_received",
+        title: "Team Invite",
+        message: `${session.name} invited you to join ${team.name || team.teamId}`,
+        teamId: team.teamId,
+        teamName: team.name ?? null,
+        fromUSN: session.usn,
+        fromName: session.name,
+        linkUrl: `/invite/${inviteId}`,
+      });
+
       if (constraint.warnings.length > 0) {
         showToast(`Invite sent to ${student.name}! Note: ${constraint.warnings[0]}`);
       } else {
@@ -352,6 +366,22 @@ function DashboardContent({ session }: { session: SessionData }) {
       }
 
       setTeam({ ...team, members: updatedMembers, memberCount: updatedMembers.length });
+
+      // Notify the kicked/removed member
+      if (wasApproved) {
+        createNotification({
+          userId: memberUSN,
+          type: "kicked_from_team",
+          title: "Removed from Team",
+          message: `You were removed from ${team.name || team.teamId} by ${session.name}`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: "/dashboard",
+        });
+      }
+
       showToast(wasApproved ? "Member kicked from team" : "Removed from team");
     } catch {
       showToast("Failed to remove member", "err");

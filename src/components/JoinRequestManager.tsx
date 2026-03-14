@@ -5,6 +5,8 @@ import { db } from "@/lib/firebase";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { canAddMember, getBranchDistribution } from "@/lib/teamConstraints";
 import { Team, Invite } from "@/lib/types";
+import { createNotification } from "@/lib/notifications";
+import { getSession } from "@/lib/session";
 import { Check, X } from "lucide-react";
 
 interface JoinRequestManagerProps {
@@ -62,6 +64,20 @@ export default function JoinRequestManager({ team, pendingRequests, onRefresh }:
         teamRole: "member",
       });
 
+      // Notify the requester
+      const session = getSession();
+      createNotification({
+        userId: request.fromUSN,
+        type: "request_approved",
+        title: "Request Approved",
+        message: `Your request to join ${team.name || team.teamId} was approved`,
+        teamId: team.teamId,
+        teamName: team.name ?? null,
+        fromUSN: session?.usn || team.leadUSN,
+        fromName: session?.name || "",
+        linkUrl: `/team/${team.teamId}`,
+      });
+
       onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve request.");
@@ -85,6 +101,20 @@ export default function JoinRequestManager({ team, pendingRequests, onRefresh }:
       await updateDoc(doc(db, "teams", team.teamId), {
         members: updatedMembers,
         updatedAt: serverTimestamp(),
+      });
+
+      // Notify the requester
+      const session = getSession();
+      createNotification({
+        userId: request.fromUSN,
+        type: "request_rejected",
+        title: "Request Rejected",
+        message: `Your request to join ${team.name || team.teamId} was rejected`,
+        teamId: team.teamId,
+        teamName: team.name ?? null,
+        fromUSN: session?.usn || team.leadUSN,
+        fromName: session?.name || "",
+        linkUrl: "/team/browse",
       });
 
       onRefresh();

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { Team, Invite, SessionData } from "@/lib/types";
 import { getSession } from "@/lib/session";
 import { generateInviteId } from "@/lib/idGenerator";
+import { createNotification } from "@/lib/notifications";
 import { getBranchName, getSection } from "@/lib/usnValidator";
 import Navbar from "@/components/Navbar";
 import TeamMemberList from "@/components/TeamMemberList";
@@ -16,10 +17,11 @@ import InviteManager from "@/components/InviteManager";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 import Link from "next/link";
-import { ArrowLeft, Share2 } from "lucide-react";
+import { ArrowLeft, Share2, Mail } from "lucide-react";
 
 export default function TeamDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
   const [team, setTeam] = useState<Team | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -27,12 +29,36 @@ export default function TeamDetailPage() {
   const [error, setError] = useState("");
   const [session, setSession] = useState<SessionData | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [pendingInviteId, setPendingInviteId] = useState<string | null>(null);
 
   // Read session from localStorage on mount (avoids SSR mismatch)
   useEffect(() => {
     setSession(getSession());
     setSessionChecked(true);
   }, []);
+
+  // Check if logged-in user has a pending invite for this team → redirect to invite page
+  useEffect(() => {
+    if (!session) return;
+    const checkPendingInvite = async () => {
+      try {
+        const invQ = query(
+          collection(db, "invites"),
+          where("teamId", "==", teamId),
+          where("toUSN", "==", session.usn),
+          where("type", "==", "invite"),
+          where("status", "==", "pending")
+        );
+        const snap = await getDocs(invQ);
+        if (!snap.empty) {
+          const inviteId = snap.docs[0].data().inviteId;
+          setPendingInviteId(inviteId);
+        }
+      } catch { /* ignore */ }
+    };
+    checkPendingInvite();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.usn, teamId]);
 
   const isLead = session?.usn === team?.leadUSN;
   const [copied, setCopied] = useState(false);
@@ -186,6 +212,19 @@ export default function TeamDetailPage() {
         updatedAt: serverTimestamp(),
       });
 
+      // Notify the team leader
+      createNotification({
+        userId: team.leadUSN,
+        type: "request_received",
+        title: "Join Request",
+        message: `${session.name} wants to join ${team.name || team.teamId}`,
+        teamId: team.teamId,
+        teamName: team.name || null,
+        fromUSN: session.usn,
+        fromName: session.name,
+        linkUrl: "/dashboard",
+      });
+
       setJoinMessage({ type: "success", text: "Request sent! The team lead will review it." });
       setHasExistingRequest(true);
       fetchTeam();
@@ -225,6 +264,97 @@ export default function TeamDetailPage() {
 
   const approvedMembers = team.members.filter(m => m.status === "approved");
 
+  // Logged-out users see a focused invite/join view instead of the full team board
+  if (sessionChecked && !session && team.status === "forming") {
+    return (
+      <main className="min-h-screen" style={{ background: "var(--paper)", color: "var(--ink)" }}>
+        <Navbar />
+        <section style={{ marginTop: 60 }} className="flex items-start justify-center px-4 py-8">
+          <div className="w-full max-w-md fade-in-up space-y-6">
+            {/* Team invite header */}
+            <div className="text-center">
+              <h1 style={{ fontFamily: "var(--bebas)", fontSize: "36px", color: "var(--ink)", lineHeight: 1 }}>
+                Join {team.name || team.teamId}
+              </h1>
+              <p style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>
+                You&apos;ve been invited to join this team on Idea Lab.
+              </p>
+            </div>
+
+            {/* Team preview card */}
+            <div className="glass-card" style={{ padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div>
+                  <p style={{ fontFamily: "var(--bebas)", fontSize: "24px", color: "var(--ink)", lineHeight: 1 }}>
+                    {team.name || team.teamId}
+                  </p>
+                  {team.name && (
+                    <p style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>{team.teamId}</p>
+                  )}
+                </div>
+                <TeamStatusBadge status={team.status} />
+              </div>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", marginBottom: "8px" }}>
+                Members ({approvedMembers.length}/6)
+              </p>
+              {approvedMembers.map(m => (
+                <div key={m.usn} style={{ padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: "13px" }}>
+                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>{m.name}</span>
+                  <span style={{ marginLeft: "8px", color: "var(--muted)", fontSize: "11px" }}>{m.branch}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Registration form */}
+            {team.isPublic ? (
+              <div className="glass-card p-6 md:p-8 space-y-4">
+                <div className="text-center">
+                  <p style={{ fontFamily: "var(--bebas)", fontSize: "22px", color: "var(--ink)", lineHeight: 1, marginBottom: "6px" }}>
+                    Register to Continue
+                  </p>
+                  <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+                    Log in or register to respond to this invite or request to join.
+                  </p>
+                </div>
+                <StudentRegistrationForm onRegistered={async () => {
+                  // After registration, check if this user has a pending invite for this team
+                  const newSession = getSession();
+                  if (newSession) {
+                    try {
+                      const invQ = query(
+                        collection(db, "invites"),
+                        where("teamId", "==", teamId),
+                        where("toUSN", "==", newSession.usn),
+                        where("type", "==", "invite"),
+                        where("status", "==", "pending")
+                      );
+                      const snap = await getDocs(invQ);
+                      if (!snap.empty) {
+                        const inviteId = snap.docs[0].data().inviteId;
+                        router.push(`/invite/${inviteId}`);
+                        return;
+                      }
+                    } catch { /* ignore, fall through to reload */ }
+                  }
+                  window.location.reload();
+                }} />
+              </div>
+            ) : (
+              <div className="glass-card" style={{ padding: "32px", textAlign: "center" }}>
+                <p style={{ fontFamily: "var(--bebas)", fontSize: "22px", color: "var(--ink)", marginBottom: "8px" }}>
+                  This team is private
+                </p>
+                <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+                  You need an invite link to join this team.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen" style={{ background: "var(--paper)", color: "var(--ink)" }}>
       <Navbar />
@@ -235,6 +365,32 @@ export default function TeamDetailPage() {
           <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textDecoration: "none" }}>
             <ArrowLeft style={{ width: 14, height: 14 }} /> Dashboard
           </Link>
+
+          {/* Pending invite banner */}
+          {pendingInviteId && (
+            <div className="glass-card" style={{ padding: "20px", borderColor: "var(--red)", borderLeftWidth: "4px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <Mail style={{ width: 20, height: 20, color: "var(--red)", flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: "14px", color: "var(--ink)" }}>
+                      You have a pending invite!
+                    </p>
+                    <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
+                      This team has invited you to join.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/invite/${pendingInviteId}`}
+                  className="btn-primary"
+                  style={{ padding: "10px 20px", fontSize: "12px", whiteSpace: "nowrap" }}
+                >
+                  Respond to Invite
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
@@ -296,22 +452,6 @@ export default function TeamDetailPage() {
                 <JoinRequestManager team={team} pendingRequests={invites} onRefresh={fetchTeam} />
               </div>
             </>
-          )}
-
-          {/* Non-member view */}
-          {team.isPublic && team.status === "forming" && sessionChecked && !session && (
-            /* Not logged in — show inline registration */
-            <div className="glass-card p-6 space-y-4">
-              <div className="text-center">
-                <p style={{ fontFamily: "var(--bebas)", fontSize: "22px", color: "var(--ink)", lineHeight: 1, marginBottom: "6px" }}>
-                  Want to join this team?
-                </p>
-                <p style={{ color: "var(--muted)", fontSize: "13px" }}>
-                  Register first, then you can request to join.
-                </p>
-              </div>
-              <StudentRegistrationForm onRegistered={() => window.location.reload()} />
-            </div>
           )}
 
           {/* Logged in, no team, can request to join */}

@@ -81,6 +81,29 @@ export interface Config {
   csvLastUploadedAt: Date | null;
 }
 
+// App notification
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type:
+    | "invite_received"
+    | "request_received"
+    | "invite_accepted"
+    | "invite_rejected"
+    | "request_approved"
+    | "request_rejected"
+    | "kicked_from_team";
+  title: string;
+  message: string;
+  teamId: string;
+  teamName: string | null;
+  fromUSN: string;
+  fromName: string;
+  linkUrl: string;
+  read: boolean;
+  createdAt: Date | null;
+}
+
 // localStorage session data
 export interface SessionData {
   usn: string;

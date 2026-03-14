@@ -5,7 +5,8 @@ import { db } from "@/lib/firebase";
 import { doc, updateDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { canAddMember, getBranchDistribution } from "@/lib/teamConstraints";
 import { Invite, Team } from "@/lib/types";
-import { updateSessionTeam } from "@/lib/session";
+import { updateSessionTeam, getSession } from "@/lib/session";
+import { createNotification } from "@/lib/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 interface InviteResponseCardProps {
@@ -70,6 +71,20 @@ export default function InviteResponseCard({ invite, team, sessionUSN, onRespons
       // Update session
       updateSessionTeam(team.teamId, "member");
 
+      // Notify the leader who sent the invite
+      const session = getSession();
+      createNotification({
+        userId: invite.fromUSN,
+        type: "invite_accepted",
+        title: "Invite Accepted",
+        message: `${session?.name || sessionUSN} accepted your invite to ${team.name || team.teamId}`,
+        teamId: team.teamId,
+        teamName: team.name ?? null,
+        fromUSN: sessionUSN,
+        fromName: session?.name || sessionUSN,
+        linkUrl: `/team/${team.teamId}`,
+      });
+
       setResponded(true);
       setResponseType("approved");
       onResponse();
@@ -98,6 +113,20 @@ export default function InviteResponseCard({ invite, team, sessionUSN, onRespons
           updatedAt: serverTimestamp(),
         });
       }
+
+      // Notify the leader who sent the invite
+      const session = getSession();
+      createNotification({
+        userId: invite.fromUSN,
+        type: "invite_rejected",
+        title: "Invite Declined",
+        message: `${session?.name || sessionUSN} declined your invite to ${invite.teamName || invite.teamId}`,
+        teamId: invite.teamId,
+        teamName: invite.teamName ?? null,
+        fromUSN: sessionUSN,
+        fromName: session?.name || sessionUSN,
+        linkUrl: `/team/${invite.teamId}`,
+      });
 
       setResponded(true);
       setResponseType("rejected");

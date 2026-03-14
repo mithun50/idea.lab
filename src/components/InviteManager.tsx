@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
 import { generateInviteId } from "@/lib/idGenerator";
 import { canAddMember } from "@/lib/teamConstraints";
+import { createNotification } from "@/lib/notifications";
+import { getSession } from "@/lib/session";
 import { Team, Invite } from "@/lib/types";
-import { Send, X, Loader2 } from "lucide-react";
+import { Send, X, Loader2, Link2, Check } from "lucide-react";
 
 interface InviteManagerProps {
   team: Team;
@@ -20,11 +22,33 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [lastInviteId, setLastInviteId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const copyInviteLink = async (inviteId: string) => {
+    const url = `${window.location.origin}/invite/${inviteId}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: team.name || "Idea Lab Team Invite",
+          text: `You've been invited to join ${team.name || team.teamId} on Idea Lab!`,
+          url,
+        });
+        return;
+      } catch { /* user cancelled or share failed, fall through to clipboard */ }
+    }
+    await navigator.clipboard.writeText(url);
+    setCopiedId(inviteId);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setLastInviteId(null);
     setIsSending(true);
 
     const upperUSN = inviteUSN.toUpperCase().trim();
@@ -96,7 +120,22 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
         updatedAt: serverTimestamp(),
       });
 
+      // Notify the invited student
+      const session = getSession();
+      createNotification({
+        userId: upperUSN,
+        type: "invite_received",
+        title: "Team Invite",
+        message: `${session?.name || team.leadUSN} invited you to join ${team.name || team.teamId}`,
+        teamId: team.teamId,
+        teamName: team.name ?? null,
+        fromUSN: team.leadUSN,
+        fromName: session?.name || team.members.find(m => m.usn === team.leadUSN)?.name || "",
+        linkUrl: `/invite/${inviteId}`,
+      });
+
       setSuccess(`Invite sent to ${toName}`);
+      setLastInviteId(inviteId);
       setInviteUSN("");
       onRefresh();
     } catch (err) {
@@ -136,7 +175,7 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
         <input
           type="text"
           value={inviteUSN}
-          onChange={(e) => { setInviteUSN(e.target.value.toUpperCase()); setError(""); setSuccess(""); }}
+          onChange={(e) => { setInviteUSN(e.target.value.toUpperCase()); setError(""); setSuccess(""); setLastInviteId(null); }}
           placeholder="Enter USN to invite"
           className="input-field"
           style={{ flex: 1, fontFamily: "monospace" }}
@@ -154,7 +193,24 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
       )}
       {success && (
         <div style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 600, background: "rgba(16, 185, 129, 0.08)", color: "#059669", border: "1.5px solid #059669" }}>
-          {success}
+          <p>{success}</p>
+          {lastInviteId && (
+            <button
+              type="button"
+              onClick={() => copyInviteLink(lastInviteId)}
+              style={{
+                marginTop: "8px", background: "none", border: "1px solid #059669", borderRadius: "3px",
+                padding: "6px 12px", fontSize: "11px", fontWeight: 700, color: "#059669",
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "5px",
+              }}
+            >
+              {copiedId === lastInviteId ? (
+                <><Check style={{ width: 12, height: 12 }} /> Link Copied!</>
+              ) : (
+                <><Link2 style={{ width: 12, height: 12 }} /> Share Invite Link</>
+              )}
+            </button>
+          )}
         </div>
       )}
 
@@ -177,13 +233,22 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
                   <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--ink)" }}>{inv.toName}</span>
                   <span style={{ marginLeft: "8px", fontFamily: "monospace", fontSize: "11px", color: "var(--muted)" }}>{inv.toUSN}</span>
                 </div>
-                <button
-                  onClick={() => handleCancelInvite(inv)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", padding: "4px" }}
-                  title="Cancel invite"
-                >
-                  <X style={{ width: 16, height: 16 }} />
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <button
+                    onClick={() => copyInviteLink(inv.inviteId)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: copiedId === inv.inviteId ? "#059669" : "var(--muted)", padding: "4px", transition: "color 0.2s" }}
+                    title="Copy invite link"
+                  >
+                    {copiedId === inv.inviteId ? <Check style={{ width: 14, height: 14 }} /> : <Link2 style={{ width: 14, height: 14 }} />}
+                  </button>
+                  <button
+                    onClick={() => handleCancelInvite(inv)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", padding: "4px" }}
+                    title="Cancel invite"
+                  >
+                    <X style={{ width: 16, height: 16 }} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
