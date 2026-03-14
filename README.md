@@ -44,7 +44,7 @@ Idea Lab enables ~825 first-year students across 7 branches to form cross-discip
 
 ### 1. Registration (`/register`)
 
-Registration uses a 3-step flow with **email OTP verification** via Supabase Auth:
+Registration uses a 3-step flow with **email OTP verification** via custom Brevo Email API:
 
 ```
 Step 1: USN Validation
@@ -71,13 +71,18 @@ from CSV    student database.
 
 Step 2: Email OTP Verification
 ──────────────────────────────
-Supabase sends a 6-digit code to CSV email
+POST /api/auth/send-otp
+  → Generate 6-digit OTP
+  → Store in Firestore otp_codes (10min expiry)
+  → Send via Brevo Email API (round-robin multi-key)
         |
         v
 Student enters code
         |
         v
-Supabase verifies OTP
+POST /api/auth/verify-otp
+  → Validate against Firestore otp_codes
+  → Max 5 attempts per code
         |
     +---+---+
     |       |
@@ -109,7 +114,7 @@ Enter USN → masked email shown → Send OTP → verify → session restored �
 ```
 
 - USN must exist in the `students` collection (CSV-imported) — strict validation
-- Email verified via Supabase OTP before registration completes
+- Email verified via custom OTP (Brevo API + Firestore) before registration completes
 - Returning students see masked email (e.g., `r****l@dbit.in`) and skip registration fields
 - Name, email, phone auto-filled from CSV; phone is editable and required (10 digits)
 - Branch and section derived from USN automatically
@@ -595,6 +600,42 @@ Document ID: "global_config"
 }
 ```
 
+### `notifications` (real-time notification system)
+
+```
+Document ID: auto-generated (timestamp + random)
+{
+  id: "1710432000000_a1b2c3",
+  userId: "1DB25EC042",           // recipient USN
+  type: "invite_received" | "request_received" | "invite_accepted" |
+        "invite_rejected" | "request_approved" | "request_rejected" |
+        "kicked_from_team",
+  title: "Team Invite",
+  message: "Rahul invited you to join Innovators",
+  teamId: "TEAM-A1B2",
+  teamName: "Innovators" | null,
+  fromUSN: "1DB25CS001",
+  fromName: "Rahul Sharma",
+  linkUrl: "/dashboard",
+  read: false,
+  createdAt: Timestamp
+}
+```
+
+### `otp_codes` (email verification codes)
+
+```
+Document ID: auto-generated
+{
+  email: "student@dbit.in",
+  otp: "482917",
+  expiresAt: 1710432600000,       // 10 minutes from creation
+  used: false,
+  attempts: 0,                    // max 5, then invalidated
+  createdAt: 1710432000000
+}
+```
+
 ### `admins` (admin whitelist)
 
 ```
@@ -614,7 +655,8 @@ Document ID: email with @ and . replaced by _
 | Language | TypeScript |
 | Database | Firebase Firestore |
 | Admin Auth | Firebase Authentication (admin only) |
-| Student Auth | Supabase Auth (email OTP verification) |
+| Student Auth | Custom OTP via Brevo Email API + Firestore |
+| Notifications | Real-time Firestore onSnapshot + Browser Notification API |
 | Styling | Custom CSS (Paper & Ink design system) |
 | Icons | Lucide React |
 | Export | xlsx library for .xlsx downloads |
@@ -650,8 +692,9 @@ src/
 │   ├── join/page.tsx          # Legacy join redirect
 │   ├── admin/page.tsx         # Admin panel (sidebar + tabs)
 │   ├── api/
-│   │   └── admin/
-│   │       └── clear-supabase/route.ts  # Server-side Supabase user cleanup
+│   │   └── auth/
+│   │       ├── send-otp/route.ts    # Generate OTP, store in Firestore, send via Brevo
+│   │       └── verify-otp/route.ts  # Validate OTP against Firestore
 │   ├── team/
 │   │   ├── create/page.tsx    # Create new team (gate-checked)
 │   │   ├── browse/page.tsx    # Browse open teams (gate-checked)
@@ -659,7 +702,8 @@ src/
 │   └── invite/
 │       └── [inviteId]/page.tsx # Invite response page
 ├── components/
-│   ├── Navbar.tsx                    # Shared nav (session-aware)
+│   ├── Navbar.tsx                    # Shared nav (session-aware, notification bell)
+│   ├── NotificationBell.tsx          # Bell icon + dropdown + toast for notifications
 │   ├── SessionGuard.tsx              # Auth wrapper, redirects to /register
 │   ├── StudentRegistrationForm.tsx   # USN-validated registration form
 │   ├── TeamCard.tsx                  # Team card for browse grid
@@ -673,9 +717,11 @@ src/
 │   ├── AdminStats.tsx                # Dashboard stats cards (4-grid)
 │   ├── StudentTable.tsx              # Searchable table with CSV/XLS export
 │   └── StatusLookup.tsx              # USN lookup with team details
+├── hooks/
+│   └── useNotifications.ts    # Real-time Firestore notification listener
 └── lib/
     ├── firebase.ts            # Firebase config (singleton)
-    ├── supabase.ts            # Supabase client (email OTP auth)
+    ├── notifications.ts       # createNotification() helper
     ├── types.ts               # All TypeScript interfaces
     ├── session.ts             # localStorage session management
     ├── teamConstraints.ts     # Team composition validation
@@ -697,7 +743,7 @@ npm install
 
 # Set up environment variables
 cp .env.example .env.local
-# Fill in Firebase config values + Supabase config values
+# Fill in Firebase config + Brevo API key
 
 # Run development server
 npm run dev
@@ -707,7 +753,7 @@ npm run dev
 
 ## Environment Variables
 
-Create `.env.local` with your Firebase and Supabase config:
+Create `.env.local` with your Firebase and Brevo config:
 
 ```env
 # Firebase (Firestore + Admin Auth)
@@ -718,23 +764,25 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
-# Supabase (Student Email OTP)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Brevo Email API (single key)
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
 
-# Supabase Admin (server-side only — used for clearing auth users in admin reset)
-SUPABASE_SERVICE_ROLE_KEY=
+# Brevo Multi-key (optional — round-robin with auto-fallback)
+# Each Brevo free account gets 300 emails/day. Add multiple for higher capacity.
+# Format: apikey:sender@email.com,apikey2:sender2@email.com
+# BREVO_KEYS=xkeysib-key1:sender1@gmail.com,xkeysib-key2:sender2@gmail.com
 ```
 
-### Supabase Setup
+### Brevo Setup
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **Authentication → Providers → Email** — ensure it's enabled
-3. Go to **Authentication → Email Templates** — customize with "Idea Lab — DBIT" branding
-4. Set OTP expiry to **10 minutes** in Auth settings
-5. Copy the **Project URL** and **anon key** (JWT) into `.env.local`
+1. Create a free account at [brevo.com](https://brevo.com) (300 emails/day)
+2. Go to **Settings → Senders & IPs → Senders** — add and verify your sender email
+3. Go to **Settings → SMTP & API → API Keys** — generate an API v3 key
+4. Copy the API key and verified sender email into `.env.local`
+5. For higher volume, create multiple Brevo accounts and use `BREVO_KEYS` for round-robin
 
-> Free tier supports 50,000 MAU — well above the ~1,000 student target.
+> **Fallback mechanism**: If `BREVO_KEYS` is set, the system distributes emails across keys in round-robin fashion. If one key fails (rate limit, error), it automatically tries the next key.
 
 ---
 
@@ -759,7 +807,7 @@ Student sessions use `localStorage` (key: `idealab_session`):
 - Validates session against Firestore `registrations` on page load
 - Dashboard syncs stale `teamId`/`teamRole` from Firestore via `updateSessionTeam()`
 - "Log out" clears session and redirects to `/`
-- Student identity verified via Supabase email OTP during registration/login
+- Student identity verified via custom email OTP (Brevo + Firestore) during registration/login
 - Firebase Auth used for admin only
 
 ---

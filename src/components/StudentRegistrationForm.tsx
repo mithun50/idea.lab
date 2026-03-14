@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, collection, query, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
-import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, PencilLine, Lock, Loader2, Mail, ShieldCheck, RotateCcw } from "lucide-react";
@@ -189,28 +188,25 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
     }
   }, []);
 
-  // Step 2: Send OTP via Supabase
+  // Step 2: Send OTP via custom SMTP
   const handleSendOtp = async () => {
     if (!studentInfo?.email) return;
     setIsSendingOtp(true);
     setOtpError("");
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: studentInfo.email,
-        options: { shouldCreateUser: true },
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: studentInfo.email }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send code.");
       setOtpSent(true);
       setStep("otp");
       startCooldown();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
-        setOtpError("Too many attempts. Please try again after 5 minutes.");
-      } else {
-        setOtpError(msg || "Failed to send verification code.");
-      }
+      setOtpError(err instanceof Error ? err.message : "Failed to send verification code.");
     } finally {
       setIsSendingOtp(false);
     }
@@ -223,12 +219,13 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
     setOtpError("");
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: studentInfo.email,
-        token: otpCode,
-        type: "email",
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: studentInfo.email, otp: otpCode }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed.");
 
       // OTP verified — if returning student, restore session from registration data
       if (isReturning) {
@@ -252,12 +249,7 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       // New student — proceed to registration step
       setStep("register");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
-        setOtpError("Too many attempts. Please try again after 5 minutes.");
-      } else {
-        setOtpError(msg || "Invalid or expired code. Please try again.");
-      }
+      setOtpError(err instanceof Error ? err.message : "Invalid or expired code. Please try again.");
     } finally {
       setIsVerifyingOtp(false);
     }

@@ -43,7 +43,7 @@ export default function AdminPage() {
     const [resetPhrase, setResetPhrase] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
     const [resetError, setResetError] = useState("");
-    const [clearSupabase, setClearSupabase] = useState(true);
+    const [clearOtpCodes, setClearOtpCodes] = useState(true);
     const [clearCSV, setClearCSV] = useState(false);
 
     // Settings States
@@ -234,23 +234,25 @@ export default function AdminPage() {
                 }
             }
 
-            // Clear Supabase auth users if selected
-            if (clearSupabase) {
+            // Clear OTP codes if selected
+            if (clearOtpCodes) {
                 try {
-                    const res = await fetch("/api/admin/clear-supabase", { method: "POST" });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || "Failed to clear Supabase users.");
+                    const otpDocs = await getDocs(collection(db, "otp_codes"));
+                    for (let i = 0; i < otpDocs.docs.length; i += 450) {
+                        const batch = writeBatch(db);
+                        otpDocs.docs.slice(i, i + 450).forEach((docSnap) => batch.delete(docSnap.ref));
+                        await batch.commit();
+                    }
                 } catch (err) {
-                    console.error("Supabase cleanup:", err);
-                    // Don't block the reset for this — Firestore data is already cleared
+                    console.error("OTP codes cleanup:", err);
                 }
             }
 
-            alert("Database has been successfully reset." + (clearCSV ? " CSV data cleared." : "") + (clearSupabase ? " Supabase auth users cleared." : ""));
+            alert("Database has been successfully reset." + (clearCSV ? " CSV data cleared." : "") + (clearOtpCodes ? " OTP codes cleared." : ""));
             setShowResetModal(false);
             setResetPassword("");
             setResetPhrase("");
-            setClearSupabase(true);
+            setClearOtpCodes(true);
             setClearCSV(false);
             await fetchStudents();
         } catch (error: unknown) {
@@ -862,11 +864,11 @@ export default function AdminPage() {
                                 <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
                                     <input
                                         type="checkbox"
-                                        checked={clearSupabase}
-                                        onChange={(e) => setClearSupabase(e.target.checked)}
+                                        checked={clearOtpCodes}
+                                        onChange={(e) => setClearOtpCodes(e.target.checked)}
                                         style={{ width: 16, height: 16, accentColor: "var(--red)" }}
                                     />
-                                    Supabase auth users (email verifications)
+                                    OTP verification codes
                                 </label>
                                 <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
                                     <input
