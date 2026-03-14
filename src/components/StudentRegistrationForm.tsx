@@ -263,6 +263,8 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
   // Final submit — write registration to Firestore
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Only allow submit on the final registration step
+    if (step !== "register") return;
     if (!studentInfo) return;
     setIsSubmitting(true);
     setSubmitError("");
