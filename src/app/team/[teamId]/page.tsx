@@ -3,15 +3,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { Team, Invite } from "@/lib/types";
 import { getSession } from "@/lib/session";
+import { generateInviteId } from "@/lib/idGenerator";
+import { getBranchName, getSection } from "@/lib/usnValidator";
 import Navbar from "@/components/Navbar";
 import TeamMemberList from "@/components/TeamMemberList";
 import BranchConstraintIndicator from "@/components/BranchConstraintIndicator";
 import TeamStatusBadge from "@/components/TeamStatusBadge";
 import InviteManager from "@/components/InviteManager";
 import JoinRequestManager from "@/components/JoinRequestManager";
+import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 import Link from "next/link";
 import { ArrowLeft, Share2 } from "lucide-react";
 
@@ -27,6 +30,10 @@ export default function TeamDetailPage() {
   const isLead = session?.usn === team?.leadUSN;
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [requestingJoin, setRequestingJoin] = useState(false);
+  const [joinMessage, setJoinMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [hasExistingRequest, setHasExistingRequest] = useState(false);
+  const [rejectedRequest, setRejectedRequest] = useState(false);
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -96,6 +103,91 @@ export default function TeamDetailPage() {
   useEffect(() => {
     fetchTeam();
   }, [fetchTeam]);
+
+  // Check if user already has a pending/rejected request for this team
+  useEffect(() => {
+    if (!session) return;
+    const checkExisting = async () => {
+      try {
+        const pendingQ = query(
+          collection(db, "invites"),
+          where("teamId", "==", teamId),
+          where("fromUSN", "==", session.usn),
+          where("type", "==", "request"),
+          where("status", "==", "pending")
+        );
+        const rejectedQ = query(
+          collection(db, "invites"),
+          where("teamId", "==", teamId),
+          where("fromUSN", "==", session.usn),
+          where("type", "==", "request"),
+          where("status", "==", "rejected")
+        );
+        const [pendingSnap, rejectedSnap] = await Promise.all([getDocs(pendingQ), getDocs(rejectedQ)]);
+        if (!pendingSnap.empty) setHasExistingRequest(true);
+        if (!rejectedSnap.empty) setRejectedRequest(true);
+      } catch { /* ignore */ }
+    };
+    checkExisting();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.usn, teamId]);
+
+  const handleRequestJoin = async () => {
+    if (!session || !team) return;
+    setRequestingJoin(true);
+    setJoinMessage(null);
+
+    try {
+      if (session.teamId) throw new Error("You're already on a team.");
+
+      // Check if already requested
+      const existingQ = query(
+        collection(db, "invites"),
+        where("teamId", "==", teamId),
+        where("fromUSN", "==", session.usn),
+        where("type", "==", "request"),
+        where("status", "==", "pending")
+      );
+      const existing = await getDocs(existingQ);
+      if (!existing.empty) throw new Error("You already have a pending request for this team.");
+
+      const inviteId = generateInviteId();
+      await setDoc(doc(db, "invites", inviteId), {
+        inviteId,
+        type: "request",
+        teamId,
+        teamName: team.name || null,
+        fromUSN: session.usn,
+        fromName: session.name,
+        toUSN: team.leadUSN,
+        toName: team.members.find(m => m.usn === team.leadUSN)?.name || "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+        respondedAt: null,
+      });
+
+      const newMember = {
+        usn: session.usn,
+        name: session.name,
+        branch: session.branch || getBranchName(session.usn),
+        section: session.section || getSection(session.usn),
+        status: "pending_request",
+        joinedAt: null,
+      };
+      await updateDoc(doc(db, "teams", teamId), {
+        members: [...team.members, newMember],
+        updatedAt: serverTimestamp(),
+      });
+
+      setJoinMessage({ type: "success", text: "Request sent! The team lead will review it." });
+      setHasExistingRequest(true);
+      fetchTeam();
+    } catch (err) {
+      setJoinMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to send request." });
+    } finally {
+      setRequestingJoin(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -200,13 +292,77 @@ export default function TeamDetailPage() {
           )}
 
           {/* Non-member view */}
-          {!session?.teamId && team.isPublic && team.status === "forming" && (
-            <div className="glass-card p-6 text-center">
-              <p style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "12px" }}>
-                This team has open slots. Register and request to join!
+          {team.isPublic && team.status === "forming" && !session && (
+            /* Not logged in — show inline registration */
+            <div className="glass-card p-6 space-y-4">
+              <div className="text-center">
+                <p style={{ fontFamily: "var(--bebas)", fontSize: "22px", color: "var(--ink)", lineHeight: 1, marginBottom: "6px" }}>
+                  Want to join this team?
+                </p>
+                <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+                  Register first, then you can request to join.
+                </p>
+              </div>
+              <StudentRegistrationForm onRegistered={() => window.location.reload()} />
+            </div>
+          )}
+
+          {/* Logged in, no team, can request to join */}
+          {team.isPublic && team.status === "forming" && session && !session.teamId && !team.members.some(m => m.usn === session.usn) && (
+            <div className="glass-card p-6 text-center space-y-3">
+              <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+                This team has open slots. Request to join!
               </p>
-              <Link href="/register" className="btn-primary" style={{ display: "inline-flex", padding: "12px 24px" }}>
-                Register to Join
+              {joinMessage && (
+                <div style={{
+                  padding: "10px 14px", fontSize: "12px", fontWeight: 600,
+                  background: joinMessage.type === "success" ? "rgba(16, 185, 129, 0.08)" : "rgba(232, 52, 26, 0.08)",
+                  color: joinMessage.type === "success" ? "#059669" : "var(--red)",
+                  border: `1.5px solid ${joinMessage.type === "success" ? "#059669" : "var(--red)"}`,
+                }}>
+                  {joinMessage.text}
+                </div>
+              )}
+              {rejectedRequest && !hasExistingRequest && (
+                <span style={{
+                  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
+                  padding: "6px 14px", borderRadius: "20px",
+                  background: "rgba(232,52,26,0.08)", color: "var(--red)",
+                  display: "inline-block",
+                }}>
+                  Your previous request was rejected
+                </span>
+              )}
+              {hasExistingRequest ? (
+                <span style={{
+                  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
+                  padding: "6px 14px", borderRadius: "20px",
+                  background: "rgba(16,185,129,0.08)", color: "#059669",
+                  display: "inline-block",
+                }}>
+                  Request Pending
+                </span>
+              ) : (
+                <button
+                  onClick={handleRequestJoin}
+                  disabled={requestingJoin}
+                  className="btn-primary"
+                  style={{ padding: "12px 24px", display: "inline-flex" }}
+                >
+                  {requestingJoin ? <><div className="spinner" style={{ width: 16, height: 16 }} /> Sending...</> : "Request to Join"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Logged in but already on a different team */}
+          {session && session.teamId && session.teamId !== teamId && (
+            <div className="glass-card p-6 text-center">
+              <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+                You&apos;re already on a team.
+              </p>
+              <Link href="/dashboard" className="btn-secondary" style={{ display: "inline-flex", marginTop: "8px", padding: "10px 20px" }}>
+                Go to Dashboard
               </Link>
             </div>
           )}
