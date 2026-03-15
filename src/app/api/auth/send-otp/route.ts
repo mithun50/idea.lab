@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase-admin";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -226,22 +227,24 @@ export async function POST(req: NextRequest) {
     const cleanUSN = usn.trim().toUpperCase();
     const adminDb = getAdminFirestore();
 
-    // Validate USN exists in students or registrations collection
+    // Validate USN against local CSV-derived list (not Firebase)
+    const usnCheck = validateUSN(cleanUSN);
+    if (!usnCheck.valid) {
+      return NextResponse.json(
+        { error: usnCheck.error || "Invalid USN." },
+        { status: 400 }
+      );
+    }
+
+    // Check if email matches in students or registrations (Firebase lookup for email match only)
     const [studentDoc, regDoc] = await Promise.all([
       adminDb.collection("students").doc(cleanUSN).get(),
       adminDb.collection("registrations").doc(cleanUSN).get(),
     ]);
 
-    if (!studentDoc.exists && !regDoc.exists) {
-      return NextResponse.json(
-        { error: "USN not found in student database." },
-        { status: 400 }
-      );
-    }
-
-    // Verify email matches the USN's stored email
-    const storedEmail = (regDoc.exists ? regDoc.data()?.email : studentDoc.data()?.email) || "";
-    if (storedEmail.trim().toLowerCase() !== cleanEmail) {
+    // If student exists in Firebase, verify email matches
+    const storedEmail = (regDoc.exists ? regDoc.data()?.email : studentDoc.exists ? studentDoc.data()?.email : null);
+    if (storedEmail && storedEmail.trim().toLowerCase() !== cleanEmail) {
       return NextResponse.json(
         { error: "Email does not match the USN on record." },
         { status: 400 }

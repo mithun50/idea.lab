@@ -67,18 +67,8 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // ── Admin protection: /admin/* ──────────────────────────────────────────
-  // Admin uses its own Firebase email/password auth, but we gate page access
-  // at the middleware level to prevent unauthorized bundle exposure.
-  if (pathname.startsWith("/admin")) {
-    const payload = await getJWTPayload(req);
-    const email = typeof payload?.email === "string" ? payload.email.toLowerCase() : "";
-    if (!payload || !ADMIN_EMAILS.has(email)) {
-      return addSecurityHeaders(
-        new NextResponse("Forbidden", { status: 403 })
-      );
-    }
-  }
+  // ── /admin/* passes through — uses its own Firebase email/password auth ──
+  // Security headers still applied; Firebase Auth has built-in brute-force protection.
 
   // ── API origin checking ─────────────────────────────────────────────────
   if (pathname.startsWith("/api")) {

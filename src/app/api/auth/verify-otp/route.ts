@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore } from "@/lib/firebase-admin";
-import { getAdminAuth } from "@/lib/firebase-admin";
+import { getAdminFirestore, getAdminAuth } from "@/lib/firebase-admin";
 import { signSessionJWT, COOKIE_NAME } from "@/lib/jwt";
 import { rateLimit, getClientIP } from "@/lib/rate-limit";
+import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
 
 const MAX_ATTEMPTS = 5;
 
@@ -32,21 +32,24 @@ export async function POST(req: NextRequest) {
     const cleanUSN = usn.trim().toUpperCase();
     const adminDb = getAdminFirestore();
 
-    // Verify USN exists and email matches
+    // Validate USN against local CSV-derived list
+    const usnCheck = validateUSN(cleanUSN);
+    if (!usnCheck.valid) {
+      return NextResponse.json(
+        { error: usnCheck.error || "Invalid USN." },
+        { status: 400 }
+      );
+    }
+
+    // Look up student/registration in Firebase for email match and user data
     const [studentDoc, regDoc] = await Promise.all([
       adminDb.collection("students").doc(cleanUSN).get(),
       adminDb.collection("registrations").doc(cleanUSN).get(),
     ]);
 
-    if (!studentDoc.exists && !regDoc.exists) {
-      return NextResponse.json(
-        { error: "USN not found in student database." },
-        { status: 400 }
-      );
-    }
-
-    const storedEmail = (regDoc.exists ? regDoc.data()?.email : studentDoc.data()?.email) || "";
-    if (storedEmail.trim().toLowerCase() !== cleanEmail) {
+    // If student exists in Firebase, verify email matches
+    const storedEmail = (regDoc.exists ? regDoc.data()?.email : studentDoc.exists ? studentDoc.data()?.email : null);
+    if (storedEmail && storedEmail.trim().toLowerCase() !== cleanEmail) {
       return NextResponse.json(
         { error: "Email does not match the USN on record." },
         { status: 400 }
@@ -102,16 +105,16 @@ export async function POST(req: NextRequest) {
     // Mark as used
     await otpDocRef.update({ used: true, verifiedAt: Date.now() });
 
-    // Build user data from registration or student record
-    const source = regDoc.exists ? regDoc.data()! : studentDoc.data()!;
+    // Build user data from registration, student record, or local CSV data
+    const source = regDoc.exists ? regDoc.data()! : studentDoc.exists ? studentDoc.data()! : null;
     const userData = {
       usn: cleanUSN,
-      name: source.name || "",
+      name: source?.name || "",
       email: cleanEmail,
-      branch: source.branch || "",
-      section: source.section || "",
-      teamId: (regDoc.exists && source.teamId) || null,
-      teamRole: (regDoc.exists && source.teamRole) || null,
+      branch: source?.branch || getBranchName(cleanUSN),
+      section: source?.section || getSection(cleanUSN),
+      teamId: (regDoc.exists && source?.teamId) || null,
+      teamRole: (regDoc.exists && source?.teamRole) || null,
     };
 
     // Create JWT session token
