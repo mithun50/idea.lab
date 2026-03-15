@@ -55,7 +55,8 @@ Student enters USN
 Format validation (1DB25XX###)
         |
         v
-Firestore lookup: students/{USN}
+Local validUSNs check + Server-side lookup
+POST /api/auth/lookup-usn (admin SDK)
         |
     +---+---+
     |       |
@@ -72,8 +73,10 @@ from CSV    student database.
 Step 2: Email OTP Verification
 ──────────────────────────────
 POST /api/auth/send-otp
+  → IP rate limit (5 sends/15min)
+  → USN validation + email match
   → Generate 6-digit OTP
-  → Store in Firestore otp_codes (10min expiry)
+  → Store in Firestore otp_codes via admin SDK (10min expiry)
   → Send via Brevo Email API (round-robin multi-key)
         |
         v
@@ -81,6 +84,7 @@ Student enters code
         |
         v
 POST /api/auth/verify-otp
+  → IP rate limit (10 attempts/15min)
   → Validate against Firestore otp_codes
   → Max 5 attempts per code
         |
@@ -89,8 +93,14 @@ POST /api/auth/verify-otp
   Valid   Invalid/Expired
     |       |
     v       v
-Proceed   "Invalid or expired
-    |      code" (retry/resend)
+On success: "Invalid or expired
+  → Set JWT  code" (retry/resend)
+    cookie
+  → Create
+    Firebase
+    custom
+    token
+    |
     v
 60-second resend cooldown
 
@@ -100,9 +110,10 @@ Confirm name, phone (email locked)
         |
         v
 Write to registrations/{USN}
+(Firebase Auth active via custom token)
         |
         v
-Create localStorage session
+localStorage session + JWT cookie + Firebase Auth
         |
         v
 Redirect to /dashboard
@@ -110,18 +121,18 @@ Redirect to /dashboard
 
 **Returning students** (USN found in `registrations`):
 ```
-Enter USN → masked email shown → Send OTP → verify → session restored → /dashboard
+Enter USN → masked email shown → Send OTP → verify → JWT + Firebase Auth → session restored → /dashboard
 ```
 
-- USN must exist in the `students` collection (CSV-imported) — strict validation
-- Email verified via custom OTP (Brevo API + Firestore) before registration completes
+- USN validated against local CSV-derived list + server-side Firebase lookup
+- Email verified via custom OTP (Brevo API + Firestore admin SDK) before registration completes
 - Returning students see masked email (e.g., `r****l@dbit.in`) and skip registration fields
 - Name, email, phone auto-filled from CSV; phone is editable and required (10 digits)
 - Branch and section derived from USN automatically
 
 ### 2. Dashboard (`/dashboard`)
 
-Protected by `SessionGuard` — validates session against Firestore on load and syncs stale `teamId`/`teamRole`.
+Protected by `SessionGuard` — validates JWT cookie via `initializeAuth()`, then validates session against Firestore on load and syncs stale `teamId`/`teamRole`.
 
 **Welcome Header** — first-name greeting with branch, section, and USN.
 
@@ -304,7 +315,7 @@ Update config.csvLastUploadedAt
 - **Team Formation Gate** — toggle team creation and joining open/closed
 - **Danger Zone** — reset database (requires password re-authentication + type "reset database")
   - Always deletes all `registrations`, `teams`, and `invites` documents
-  - Optional: **Clear Supabase auth users** (email OTP data) — checked by default
+  - Optional: **Clear OTP codes** — checked by default
   - Optional: **Clear CSV student master data** (`students` collection) — unchecked by default
   - Does NOT delete `admins` or `config`
 
@@ -404,20 +415,27 @@ Example: `1DB25CS075` → Branch: **CSE**, Section: **B**
 ### Registration Flow
 
 ```
-[Student]                    [Firestore]              [Supabase Auth]
+[Student]                    [Server API]             [Firestore]
     |                            |                         |
     |-- Enter USN ------------->|                         |
-    |                            |-- Check students/{USN} |
+    |                            |-- /api/auth/lookup-usn  |
+    |                            |   (admin SDK lookup)    |
     |<-- Show email from CSV ---|                         |
     |                            |                         |
-    |-- "Send OTP" -------------|------------------------>|
-    |                            |       signInWithOtp()   |
-    |<-- 6-digit code to email --|------------------------|
+    |-- "Send OTP" ------------>|                         |
+    |                            |-- /api/auth/send-otp    |
+    |                            |   IP rate limit check   |
+    |                            |   Store OTP (admin SDK) |
+    |<-- 6-digit code to email -|   Send via Brevo API    |
     |                            |                         |
-    |-- Enter code -------------|------------------------>|
-    |                            |        verifyOtp()      |
-    |<-- Verified --------------|------------------------|
+    |-- Enter code ------------>|                         |
+    |                            |-- /api/auth/verify-otp  |
+    |                            |   Validate OTP          |
+    |                            |   Create JWT cookie     |
+    |                            |   Create Firebase token |
+    |<-- JWT + custom token ----|                         |
     |                            |                         |
+    |-- signInWithCustomToken   |                         |
     |-- Confirm & Submit ------>|                         |
     |                            |-- Write registrations/  |
     |<-- Session created -------|                         |
@@ -654,13 +672,16 @@ Document ID: email with @ and . replaced by _
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Database | Firebase Firestore |
-| Admin Auth | Firebase Authentication (admin only) |
-| Student Auth | Custom OTP via Brevo Email API + Firestore |
+| Admin Auth | Firebase Authentication (email/password) |
+| Student Auth | Custom OTP (Brevo Email API) + JWT cookies + Firebase custom tokens |
+| Server SDK | Firebase Admin SDK (Firestore admin access, custom token creation) |
+| JWT | jose (HS256, Edge-compatible) |
+| Rate Limiting | In-memory IP-based rate limiter |
 | Notifications | Real-time Firestore onSnapshot + Browser Notification API |
 | Styling | Custom CSS (Paper & Ink design system) |
 | Icons | Lucide React |
 | Export | xlsx library for .xlsx downloads |
-| Session | localStorage-based student sessions |
+| Session | JWT httpOnly cookie (auth) + localStorage (UI cache) |
 | Fonts | Bebas Neue (headings), Instrument Sans (body) |
 
 ### Design System: Paper & Ink
@@ -682,9 +703,9 @@ Minimal, print-inspired aesthetic using CSS custom properties:
 
 ```
 src/
-├── middleware.ts             # Origin allowlist for all /api/* endpoints
+├── middleware.ts             # Route protection, origin checking, security headers
 ├── app/
-│   ├── layout.tsx             # Root layout (fonts, global CSS)
+│   ├── layout.tsx             # Root layout (fonts, global CSS, AuthProvider)
 │   ├── page.tsx               # Landing page
 │   ├── globals.css            # All styles (Paper & Ink design system)
 │   ├── register/page.tsx      # Student registration
@@ -694,8 +715,11 @@ src/
 │   ├── admin/page.tsx         # Admin panel (sidebar + tabs)
 │   ├── api/
 │   │   └── auth/
-│   │       ├── send-otp/route.ts    # Generate OTP, store in Firestore, send via Brevo
-│   │       └── verify-otp/route.ts  # Validate OTP against Firestore
+│   │       ├── send-otp/route.ts       # IP rate-limited OTP generation via admin SDK
+│   │       ├── verify-otp/route.ts     # OTP verification → JWT cookie + Firebase custom token
+│   │       ├── lookup-usn/route.ts     # Server-side USN lookup (admin SDK, pre-auth)
+│   │       ├── firebase-token/route.ts # Refresh Firebase custom token from JWT cookie
+│   │       └── logout/route.ts         # Clear JWT session cookie
 │   ├── team/
 │   │   ├── create/page.tsx    # Create new team (gate-checked)
 │   │   ├── browse/page.tsx    # Browse open teams (gate-checked)
@@ -703,9 +727,10 @@ src/
 │   └── invite/
 │       └── [inviteId]/page.tsx # Invite response page
 ├── components/
+│   ├── AuthProvider.tsx              # Firebase Auth state context (wraps app)
 │   ├── Navbar.tsx                    # Shared nav (session-aware, notification bell)
 │   ├── NotificationBell.tsx          # Bell icon + dropdown + toast for notifications
-│   ├── SessionGuard.tsx              # Auth wrapper, redirects to /register
+│   ├── SessionGuard.tsx              # Auth wrapper (JWT + Firestore validation)
 │   ├── StudentRegistrationForm.tsx   # USN-validated registration form
 │   ├── TeamCard.tsx                  # Team card for browse grid
 │   ├── TeamMemberList.tsx            # Member list with status badges
@@ -721,17 +746,22 @@ src/
 ├── hooks/
 │   └── useNotifications.ts    # Real-time Firestore notification listener
 └── lib/
-    ├── firebase.ts            # Firebase config (singleton)
+    ├── firebase.ts            # Firebase client SDK config (singleton)
+    ├── firebase-admin.ts      # Firebase Admin SDK (server-side, custom tokens)
+    ├── jwt.ts                 # JWT session signing/verification (jose, HS256)
+    ├── rate-limit.ts          # In-memory IP rate limiter with auto-cleanup
     ├── notifications.ts       # createNotification() helper
     ├── types.ts               # All TypeScript interfaces
-    ├── session.ts             # localStorage session management
+    ├── session.ts             # localStorage + initializeAuth() + fullLogout()
     ├── teamConstraints.ts     # Team composition validation
     ├── csvParser.ts           # CSV parser (Name,USN,Mobile,Email)
     ├── xlsExport.ts           # XLS file generation
     ├── idGenerator.ts         # TEAM-XXXX and INV-XXXXXX generators
     ├── usnValidator.ts        # USN format, branch, section validation
-    ├── validUSNs.ts           # Static USN list (legacy)
+    ├── validUSNs.ts           # Static USN list (CSV-derived)
     └── matchingAlgorithm.ts   # Pair matching (legacy fallback)
+
+firestore.rules              # Firestore security rules (deploy separately)
 ```
 
 ---
@@ -744,20 +774,28 @@ npm install
 
 # Set up environment variables
 cp .env.example .env.local
-# Fill in Firebase config + Brevo API key
+# Fill in Firebase client config, Firebase Admin service account key,
+# JWT secret, Brevo API key, and admin emails
+
+# Generate JWT secret
+openssl rand -base64 32
+# Paste output as JWT_SECRET in .env.local
 
 # Run development server
 npm run dev
+
+# Deploy Firestore rules (after all code is deployed)
+firebase deploy --only firestore:rules
 ```
 
 ---
 
 ## Environment Variables
 
-Create `.env.local` with your Firebase and Brevo config:
+Create `.env.local` with your config (see `.env.example`):
 
 ```env
-# Firebase (Firestore + Admin Auth)
+# Firebase Client SDK
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
@@ -765,19 +803,34 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
+# Firebase Admin SDK (server-side only)
+# Firebase Console → Project Settings → Service Accounts → Generate New Private Key
+# Paste the entire JSON as a single-line string
+FIREBASE_SERVICE_ACCOUNT_KEY=
+
+# JWT Session Secret (generate with: openssl rand -base64 32)
+JWT_SECRET=
+
+# Admin emails (comma-separated)
+ADMIN_EMAILS=admin@dfriendsclub.in
+
 # Brevo Email API (single key)
 BREVO_API_KEY=
 BREVO_SENDER_EMAIL=
 
 # Brevo Multi-key (optional — round-robin with auto-fallback)
-# Each Brevo free account gets 300 emails/day. Add multiple for higher capacity.
-# Format: apikey:sender@email.com,apikey2:sender2@email.com
-# BREVO_KEYS=xkeysib-key1:sender1@gmail.com,xkeysib-key2:sender2@gmail.com
+# BREVO_KEYS=apikey1:sender1@email.com,apikey2:sender2@email.com
 
-# Origin allowlist for all API endpoints (comma-separated)
-# Only these domains can call /api/* routes — blocks abuse from external sites
+# Origin allowlist (comma-separated, optional)
 # ALLOWED_ORIGINS=https://idealab.dfriendsclub.in,http://localhost:3000
 ```
+
+### Firebase Admin Setup
+
+1. Go to Firebase Console → **Project Settings → Service Accounts**
+2. Click **Generate New Private Key** — downloads a JSON file
+3. Paste the entire JSON (as a single line) into `FIREBASE_SERVICE_ACCOUNT_KEY`
+4. This enables server-side Firestore access and custom token creation
 
 ### Brevo Setup
 
@@ -789,41 +842,68 @@ BREVO_SENDER_EMAIL=
 
 > **Fallback mechanism**: If `BREVO_KEYS` is set, the system distributes emails across keys in round-robin fashion. If one key fails (rate limit, error), it automatically tries the next key.
 
-### API Security
-
-All `/api/*` endpoints are protected by origin-checking middleware (`src/middleware.ts`):
-
-- Only requests from allowed domains are accepted (checked via `Origin`/`Referer` header)
-- External sites, Postman, and direct curl calls are blocked with `403 Forbidden`
-- Server-side calls (SSR, API-to-API on same host) are allowed automatically
-- Defaults: `localhost:3000`, `localhost:3001`, `idealab.dfriendsclub.in`
-- Configure via `ALLOWED_ORIGINS` env var for custom domains
-
 ---
 
-## Session Management
+## Security Architecture
 
-Student sessions use `localStorage` (key: `idealab_session`):
+### Authentication Layers
 
-```json
-{
-  "usn": "1DB25CS001",
-  "name": "Rahul Sharma",
-  "email": "rahul.s@dbit.in",
-  "branch": "CSE",
-  "section": "A",
-  "teamId": "TEAM-A1B2",
-  "teamRole": "lead",
-  "registeredAt": "2026-03-12T..."
-}
-```
+| Layer | Mechanism | Purpose |
+|-------|-----------|---------|
+| **JWT Cookie** | `idealab_token` (httpOnly, SameSite=lax, HS256) | Server-side session — verified by middleware |
+| **Firebase Custom Token** | Created by admin SDK on OTP verify | Client-side Firestore auth — enforces security rules |
+| **localStorage** | `idealab_session` (UI data cache) | Fast client-side rendering of user info |
 
-- `SessionGuard` component wraps authenticated student pages
-- Validates session against Firestore `registrations` on page load
-- Dashboard syncs stale `teamId`/`teamRole` from Firestore via `updateSessionTeam()`
-- "Log out" clears session and redirects to `/`
-- Student identity verified via custom email OTP (Brevo + Firestore) during registration/login
-- Firebase Auth used for admin only
+### Auth Flow
+
+1. Student verifies OTP → server creates JWT cookie + Firebase custom token
+2. Middleware checks JWT on protected routes (`/dashboard`, `/team/create`)
+3. `AuthProvider` restores Firebase Auth from JWT cookie on page load
+4. `SessionGuard` validates JWT + Firestore record before rendering
+5. Logout clears all three layers (cookie + Firebase signOut + localStorage)
+
+### Route Protection (Middleware)
+
+| Route | Protection |
+|-------|-----------|
+| `/dashboard/*`, `/team/create/*` | JWT cookie required → redirect to `/register` |
+| `/admin/*` | Passes through (uses own Firebase email/password auth) |
+| `/api/*` | Origin checking (blocks cross-origin requests) |
+| All routes | Security headers (CSP, HSTS, X-Frame-Options, etc.) |
+
+### API Rate Limiting
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `POST /api/auth/send-otp` | 5 requests per IP | 15 minutes |
+| `POST /api/auth/verify-otp` | 10 attempts per IP | 15 minutes |
+| Per-OTP attempts | 5 attempts | Until expired |
+| Per-email cooldown | 1 OTP | 60 seconds |
+
+### Firestore Security Rules
+
+All client-side Firestore access requires Firebase Auth (`auth != null`). Key authorization rules:
+
+- **registrations**: Only self can create/update; team lead can set `teamId`/`teamRole`
+- **invites**: Only `fromUSN` can create; only participants can update
+- **notifications**: Only recipient can read/update; `fromUSN` must match creator
+- **otp_codes**: Client access denied (admin SDK only)
+- **config**: Publicly readable (non-sensitive status flags)
+- **students**: Read-only for authenticated users
+
+Deploy rules: `firebase deploy --only firestore:rules`
+
+### Security Headers
+
+| Header | Value |
+|--------|-------|
+| `X-Frame-Options` | DENY |
+| `X-Content-Type-Options` | nosniff |
+| `Referrer-Policy` | strict-origin-when-cross-origin |
+| `Permissions-Policy` | camera=(), microphone=(), geolocation=() |
+| `Content-Security-Policy` | Restricts scripts, styles, fonts, connections |
+| `Strict-Transport-Security` | max-age=31536000; includeSubDomains |
+| `X-Powered-By` | Removed |
 
 ---
 
