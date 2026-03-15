@@ -8,7 +8,7 @@ import AdminStats from "@/components/AdminStats";
 import StudentTable from "@/components/StudentTable";
 import CSVUploader from "@/components/CSVUploader";
 import CSVStudentTable, { CSVStudent } from "@/components/CSVStudentTable";
-import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet } from "lucide-react";
+import { LayoutDashboard, Users, UsersRound, Trophy, Settings, LogOut, Lightbulb, AlertTriangle, ShieldAlert, Eraser, Database, Download, FileSpreadsheet, UserMinus } from "lucide-react";
 
 interface Student {
     name: string;
@@ -182,6 +182,36 @@ export default function AdminPage() {
     const handleLogout = async () => {
         await signOut(auth);
         setStudents([]);
+    };
+
+    const handleAdminRemoveMember = async (teamId: string, memberUSN: string, memberName: string) => {
+        if (!confirm(`Remove ${memberName} (${memberUSN}) from team ${teamNamesMap[teamId] || teamId}?`)) return;
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error("Not authenticated");
+            const idToken = await currentUser.getIdToken();
+
+            const res = await fetch("/api/admin/remove-team-member", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "remove-member",
+                    idToken,
+                    teamId,
+                    memberUSN,
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to remove member");
+            }
+
+            await fetchStudents();
+        } catch (err) {
+            console.error("Failed to remove member:", err);
+            alert(err instanceof Error ? err.message : "Failed to remove member");
+        }
     };
 
     const handleResetDatabase = async (e: React.FormEvent) => {
@@ -707,6 +737,7 @@ export default function AdminPage() {
                                                                         <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>USN</th>
                                                                         <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }} className="admin-hide-mobile">Branch</th>
                                                                         <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>Role</th>
+                                                                        <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "10px", color: "var(--muted)" }}>Actions</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -721,6 +752,20 @@ export default function AdminPage() {
                                                                                         {m.teamRole}
                                                                                     </span>
                                                                                 ) : "—"}
+                                                                            </td>
+                                                                            <td style={{ padding: "12px 20px" }}>
+                                                                                <button
+                                                                                    onClick={() => handleAdminRemoveMember(teamId, m.usn, m.name)}
+                                                                                    style={{
+                                                                                        fontFamily: "var(--font-body)", fontSize: "11px", fontWeight: 600,
+                                                                                        background: "none", color: "#E8341A",
+                                                                                        border: "1px solid rgba(232,52,26,0.3)", borderRadius: "3px",
+                                                                                        padding: "4px 10px", cursor: "pointer",
+                                                                                        display: "inline-flex", alignItems: "center", gap: "4px",
+                                                                                    }}
+                                                                                >
+                                                                                    <UserMinus style={{ width: 12, height: 12 }} /> Remove
+                                                                                </button>
                                                                             </td>
                                                                         </tr>
                                                                     ))}

@@ -92,7 +92,10 @@ export interface AppNotification {
     | "invite_rejected"
     | "request_approved"
     | "request_rejected"
-    | "kicked_from_team";
+    | "kicked_from_team"
+    | "member_left_team"
+    | "team_dissolved"
+    | "lead_transferred";
   title: string;
   message: string;
   teamId: string;

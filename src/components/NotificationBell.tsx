@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/hooks/useNotifications";
 import { AppNotification } from "@/lib/types";
-import { Bell, Mail, UserPlus, CheckCircle, XCircle, UserMinus } from "lucide-react";
+import { Bell, Mail, UserPlus, CheckCircle, XCircle, UserMinus, LogOut, AlertTriangle } from "lucide-react";
 
 function getTimeAgo(date: Date | null): string {
   if (!date) return "";
@@ -33,6 +33,12 @@ function getNotifIcon(type: AppNotification["type"]) {
       return <XCircle style={{ ...size, color: "#E8341A" }} />;
     case "kicked_from_team":
       return <UserMinus style={{ ...size, color: "#E8341A" }} />;
+    case "member_left_team":
+      return <LogOut style={{ ...size, color: "#f59e0b" }} />;
+    case "team_dissolved":
+      return <AlertTriangle style={{ ...size, color: "#E8341A" }} />;
+    case "lead_transferred":
+      return <UserPlus style={{ ...size, color: "#2563eb" }} />;
     default:
       return <Bell style={{ ...size, color: "var(--muted)" }} />;
   }

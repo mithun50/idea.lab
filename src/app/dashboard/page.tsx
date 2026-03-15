@@ -7,7 +7,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Team, Invite, SessionData, Registration } from "@/lib/types";
-import { getSession, updateSessionTeam } from "@/lib/session";
+import { getSession, updateSessionTeam, clearSession, initializeAuth } from "@/lib/session";
+import { auth } from "@/lib/firebase";
 import { generateInviteId } from "@/lib/idGenerator";
 import { canAddMember } from "@/lib/teamConstraints";
 import { createNotification } from "@/lib/notifications";
@@ -17,7 +18,7 @@ import TeamStatusBadge from "@/components/TeamStatusBadge";
 import BranchConstraintIndicator from "@/components/BranchConstraintIndicator";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import Link from "next/link";
-import { Users, Plus, Search, Mail, ArrowRight, Lightbulb, XCircle } from "lucide-react";
+import { Users, Plus, Search, Mail, ArrowRight, Lightbulb, XCircle, LogOut, AlertTriangle } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const MAX_DIRECT_INVITES = 3;
@@ -385,6 +386,167 @@ function DashboardContent({ session }: { session: SessionData }) {
       showToast(wasApproved ? "Member kicked from team" : "Removed from team");
     } catch {
       showToast("Failed to remove member", "err");
+    }
+  };
+
+  // ── Leave Team ──────────────────────────────────────────────────────
+  const leaveTeam = async () => {
+    if (!team || !session) return;
+    if (team.status !== "forming") {
+      showToast("You can only leave a team that is still forming.", "err");
+      return;
+    }
+    if (!confirm("Are you sure you want to leave this team?")) return;
+
+    const approvedMembers = team.members.filter(m => m.status === "approved");
+    const isLeader = session.usn === team.leadUSN;
+
+    // Lead with no other approved members → dissolve
+    if (isLeader && approvedMembers.length <= 1) {
+      await dissolveTeam();
+      return;
+    }
+
+    try {
+      const updatedMembers = team.members.filter(m => m.usn !== session.usn);
+
+      if (isLeader) {
+        // Transfer leadership to next approved member
+        const otherApproved = approvedMembers.filter(m => m.usn !== session.usn);
+        const newLead = otherApproved[0];
+
+        await updateDoc(doc(db, "teams", team.teamId), {
+          leadUSN: newLead.usn,
+          members: updatedMembers,
+          memberCount: updatedMembers.length,
+          updatedAt: serverTimestamp(),
+        });
+
+        // Update new lead's registration
+        await updateDoc(doc(db, "registrations", newLead.usn), {
+          teamRole: "lead",
+        });
+
+        // Notify new lead
+        createNotification({
+          userId: newLead.usn,
+          type: "lead_transferred",
+          title: "You're the new Team Lead",
+          message: `${session.name} left ${team.name || team.teamId}. You are now the team lead.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: `/team/${team.teamId}`,
+        });
+
+        // Notify other members
+        for (const m of updatedMembers) {
+          if (m.usn !== newLead.usn && m.status === "approved") {
+            createNotification({
+              userId: m.usn,
+              type: "member_left_team",
+              title: "Team Lead Left",
+              message: `${session.name} left ${team.name || team.teamId}. ${newLead.name} is the new lead.`,
+              teamId: team.teamId,
+              teamName: team.name ?? null,
+              fromUSN: session.usn,
+              fromName: session.name,
+              linkUrl: `/team/${team.teamId}`,
+            });
+          }
+        }
+      } else {
+        // Non-lead leaving
+        await updateDoc(doc(db, "teams", team.teamId), {
+          members: updatedMembers,
+          memberCount: updatedMembers.length,
+          updatedAt: serverTimestamp(),
+        });
+
+        // Notify the lead
+        createNotification({
+          userId: team.leadUSN,
+          type: "member_left_team",
+          title: "Member Left",
+          message: `${session.name} left ${team.name || team.teamId}.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: `/team/${team.teamId}`,
+        });
+      }
+
+      // Clear own registration
+      await updateDoc(doc(db, "registrations", session.usn), {
+        teamId: null,
+        teamRole: null,
+      });
+
+      clearSession();
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to leave team:", err);
+      showToast("Failed to leave team. Try again.", "err");
+    }
+  };
+
+  // ── Dissolve Team ──────────────────────────────────────────────────
+  const dissolveTeam = async () => {
+    if (!team || !session) return;
+    if (team.status !== "forming") {
+      showToast("You can only dissolve a team that is still forming.", "err");
+      return;
+    }
+    if (!confirm("Are you sure you want to dissolve this team? All members will be removed.")) return;
+
+    try {
+      await initializeAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        showToast("Authentication error. Please reload.", "err");
+        return;
+      }
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch("/api/admin/remove-team-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "dissolve",
+          idToken,
+          teamId: team.teamId,
+          callerUSN: session.usn,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to dissolve team");
+      }
+
+      // Notify all approved members (except self)
+      const approvedMembers = team.members.filter(m => m.status === "approved" && m.usn !== session.usn);
+      for (const m of approvedMembers) {
+        createNotification({
+          userId: m.usn,
+          type: "team_dissolved",
+          title: "Team Dissolved",
+          message: `${session.name} dissolved ${team.name || team.teamId}. You are no longer on a team.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: "/dashboard",
+        });
+      }
+
+      clearSession();
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to dissolve team:", err);
+      showToast(err instanceof Error ? err.message : "Failed to dissolve team.", "err");
     }
   };
 
@@ -778,6 +940,42 @@ function DashboardContent({ session }: { session: SessionData }) {
               View Full Team Page <ArrowRight style={{ width: 14, height: 14 }} />
             </Link>
           </div>
+
+          {/* Danger Zone — only when forming */}
+          {team.status === "forming" && (
+            <div className="glass-card" style={{ padding: "20px", borderColor: "#E8341A", borderLeftWidth: "4px" }}>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#E8341A", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <AlertTriangle style={{ width: 14, height: 14 }} />
+                Danger Zone
+              </p>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  onClick={leaveTeam}
+                  style={{
+                    fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                    background: "none", color: "#E8341A",
+                    border: "1.5px solid rgba(232,52,26,0.3)", borderRadius: "4px",
+                    padding: "8px 16px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px",
+                  }}
+                >
+                  <LogOut style={{ width: 14, height: 14 }} /> Leave Team
+                </button>
+                <button
+                  onClick={dissolveTeam}
+                  style={{
+                    fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                    background: "rgba(232,52,26,0.08)", color: "#E8341A",
+                    border: "1.5px solid rgba(232,52,26,0.3)", borderRadius: "4px",
+                    padding: "8px 16px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px",
+                  }}
+                >
+                  <AlertTriangle style={{ width: 14, height: 14 }} /> Dissolve Team
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -804,7 +1002,7 @@ function DashboardContent({ session }: { session: SessionData }) {
 
           <BranchConstraintIndicator members={team.members} />
 
-          <div style={{ marginTop: "16px" }}>
+          <div style={{ marginTop: "16px", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <Link
               href={`/team/${team.teamId}`}
               className="btn-primary"
@@ -812,6 +1010,20 @@ function DashboardContent({ session }: { session: SessionData }) {
             >
               View Team <ArrowRight style={{ width: 14, height: 14 }} />
             </Link>
+            {team.status === "forming" && (
+              <button
+                onClick={leaveTeam}
+                style={{
+                  fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                  background: "none", color: "#E8341A",
+                  border: "1.5px solid rgba(232,52,26,0.3)", borderRadius: "4px",
+                  padding: "10px 16px", cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: "6px",
+                }}
+              >
+                <LogOut style={{ width: 14, height: 14 }} /> Leave Team
+              </button>
+            )}
           </div>
         </div>
       )}

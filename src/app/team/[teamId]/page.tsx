@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { Team, Invite, SessionData } from "@/lib/types";
-import { getSession } from "@/lib/session";
+import { getSession, clearSession, initializeAuth } from "@/lib/session";
+import { auth } from "@/lib/firebase";
 import { generateInviteId } from "@/lib/idGenerator";
 import { createNotification } from "@/lib/notifications";
 import { getBranchName, getSection } from "@/lib/usnValidator";
@@ -17,7 +18,7 @@ import InviteManager from "@/components/InviteManager";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 import Link from "next/link";
-import { ArrowLeft, Share2, Mail } from "lucide-react";
+import { ArrowLeft, Share2, Mail, LogOut, AlertTriangle } from "lucide-react";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -233,6 +234,165 @@ export default function TeamDetailPage() {
     }
   };
 
+  // ── Toast state ──
+  const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
+  const showToast = (msg: string, type: "ok" | "err" = "ok") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  // ── Leave Team ──
+  const leaveTeam = async () => {
+    if (!team || !session) return;
+    if (team.status !== "forming") {
+      showToast("You can only leave a team that is still forming.", "err");
+      return;
+    }
+    if (!confirm("Are you sure you want to leave this team?")) return;
+
+    const approvedMems = team.members.filter(m => m.status === "approved");
+    const isLeader = session.usn === team.leadUSN;
+
+    if (isLeader && approvedMems.length <= 1) {
+      await dissolveTeam();
+      return;
+    }
+
+    try {
+      const updatedMembers = team.members.filter(m => m.usn !== session.usn);
+
+      if (isLeader) {
+        const otherApproved = approvedMems.filter(m => m.usn !== session.usn);
+        const newLead = otherApproved[0];
+
+        await updateDoc(doc(db, "teams", team.teamId), {
+          leadUSN: newLead.usn,
+          members: updatedMembers,
+          memberCount: updatedMembers.length,
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateDoc(doc(db, "registrations", newLead.usn), {
+          teamRole: "lead",
+        });
+
+        createNotification({
+          userId: newLead.usn,
+          type: "lead_transferred",
+          title: "You're the new Team Lead",
+          message: `${session.name} left ${team.name || team.teamId}. You are now the team lead.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: `/team/${team.teamId}`,
+        });
+
+        for (const m of updatedMembers) {
+          if (m.usn !== newLead.usn && m.status === "approved") {
+            createNotification({
+              userId: m.usn,
+              type: "member_left_team",
+              title: "Team Lead Left",
+              message: `${session.name} left ${team.name || team.teamId}. ${newLead.name} is the new lead.`,
+              teamId: team.teamId,
+              teamName: team.name ?? null,
+              fromUSN: session.usn,
+              fromName: session.name,
+              linkUrl: `/team/${team.teamId}`,
+            });
+          }
+        }
+      } else {
+        await updateDoc(doc(db, "teams", team.teamId), {
+          members: updatedMembers,
+          memberCount: updatedMembers.length,
+          updatedAt: serverTimestamp(),
+        });
+
+        createNotification({
+          userId: team.leadUSN,
+          type: "member_left_team",
+          title: "Member Left",
+          message: `${session.name} left ${team.name || team.teamId}.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: `/team/${team.teamId}`,
+        });
+      }
+
+      await updateDoc(doc(db, "registrations", session.usn), {
+        teamId: null,
+        teamRole: null,
+      });
+
+      clearSession();
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Failed to leave team:", err);
+      showToast("Failed to leave team. Try again.", "err");
+    }
+  };
+
+  // ── Dissolve Team ──
+  const dissolveTeam = async () => {
+    if (!team || !session) return;
+    if (team.status !== "forming") {
+      showToast("You can only dissolve a team that is still forming.", "err");
+      return;
+    }
+    if (!confirm("Are you sure you want to dissolve this team? All members will be removed.")) return;
+
+    try {
+      await initializeAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        showToast("Authentication error. Please reload.", "err");
+        return;
+      }
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch("/api/admin/remove-team-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "dissolve",
+          idToken,
+          teamId: team.teamId,
+          callerUSN: session.usn,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to dissolve team");
+      }
+
+      const approvedMems = team.members.filter(m => m.status === "approved" && m.usn !== session.usn);
+      for (const m of approvedMems) {
+        createNotification({
+          userId: m.usn,
+          type: "team_dissolved",
+          title: "Team Dissolved",
+          message: `${session.name} dissolved ${team.name || team.teamId}. You are no longer on a team.`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: "/dashboard",
+        });
+      }
+
+      clearSession();
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Failed to dissolve team:", err);
+      showToast(err instanceof Error ? err.message : "Failed to dissolve team.", "err");
+    }
+  };
+
   const handleRequestJoin = async () => {
     if (!session || !team) return;
     setRequestingJoin(true);
@@ -429,6 +589,19 @@ export default function TeamDetailPage() {
 
       <section style={{ marginTop: 60, maxWidth: "720px", margin: "80px auto 40px", padding: "0 20px" }}>
         <div className="fade-in-up space-y-8">
+          {/* Toast */}
+          {toast && (
+            <div style={{
+              position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)",
+              background: toast.type === "ok" ? "var(--ink)" : "#E8341A",
+              color: "var(--paper)", fontFamily: "var(--font-body)", fontSize: "13px",
+              padding: "10px 22px", borderRadius: "4px", zIndex: 9999,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+            }}>
+              {toast.msg}
+            </div>
+          )}
+
           {/* Back */}
           <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textDecoration: "none" }}>
             <ArrowLeft style={{ width: 14, height: 14 }} /> Dashboard
@@ -527,6 +700,44 @@ export default function TeamDetailPage() {
                 <JoinRequestManager team={team} pendingRequests={invites} onRefresh={fetchTeam} />
               </div>
             </>
+          )}
+
+          {/* Danger Zone — Leave / Dissolve */}
+          {session && team.members.some(m => m.usn === session.usn && m.status === "approved") && team.status === "forming" && (
+            <div className="glass-card" style={{ padding: "20px", borderColor: "#E8341A", borderLeftWidth: "4px" }}>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#E8341A", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <AlertTriangle style={{ width: 14, height: 14 }} />
+                Danger Zone
+              </p>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  onClick={leaveTeam}
+                  style={{
+                    fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                    background: "none", color: "#E8341A",
+                    border: "1.5px solid rgba(232,52,26,0.3)", borderRadius: "4px",
+                    padding: "8px 16px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px",
+                  }}
+                >
+                  <LogOut style={{ width: 14, height: 14 }} /> Leave Team
+                </button>
+                {isLead && (
+                  <button
+                    onClick={dissolveTeam}
+                    style={{
+                      fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                      background: "rgba(232,52,26,0.08)", color: "#E8341A",
+                      border: "1.5px solid rgba(232,52,26,0.3)", borderRadius: "4px",
+                      padding: "8px 16px", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: "6px",
+                    }}
+                  >
+                    <AlertTriangle style={{ width: 14, height: 14 }} /> Dissolve Team
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Logged in, no team, can request to join */}
