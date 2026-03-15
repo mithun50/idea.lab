@@ -132,51 +132,54 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
 
     setIsLookingUp(true);
     try {
-      // Check if already registered (returning student)
-      const existingReg = await getDoc(doc(db, "registrations", upper));
-      if (existingReg.exists()) {
-        const regData = existingReg.data();
-        setUsnValidation({
-          valid: true,
-          message: `${regData.branch || result.branch} — Section ${regData.section || result.section} (already registered)`,
-          branch: regData.branch || result.branch,
-          section: regData.section || result.section,
-        });
-        setStudentInfo({
-          name: regData.name || "",
-          email: regData.email || "",
-          phone: regData.phone || "",
-          branch: regData.branch || result.branch || "",
-          section: regData.section || result.section || "",
-        });
-        setIsReturning(true);
-        return;
-      }
+      // Server-side lookup (uses admin SDK — bypasses Firestore auth rules)
+      const res = await fetch("/api/auth/lookup-usn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usn: upper }),
+      });
+      const data = await res.json();
 
-      // Must exist in students collection (CSV imported)
-      const studentDoc = await getDoc(doc(db, "students", upper));
-      if (studentDoc.exists()) {
-        const data = studentDoc.data();
-        setUsnValidation({
-          valid: true,
-          message: `${data.branch || result.branch} — Section ${data.section || result.section}`,
-          branch: data.branch || result.branch,
-          section: data.section || result.section,
-        });
-        setStudentInfo({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          branch: data.branch || result.branch || "",
-          section: data.section || result.section || "",
-        });
-      } else {
+      if (!res.ok || !data.found) {
         setCsvNotFound(true);
         setUsnValidation({
           valid: false,
-          message: "USN not found in the student database. Contact your admin to ensure the CSV has been uploaded.",
+          message: data.error || "USN not found in the student database.",
         });
         setStudentInfo(null);
+        return;
+      }
+
+      const s = data.student;
+      if (data.returning) {
+        setUsnValidation({
+          valid: true,
+          message: `${s.branch || result.branch} — Section ${s.section || result.section} (already registered)`,
+          branch: s.branch || result.branch,
+          section: s.section || result.section,
+        });
+        setStudentInfo({
+          name: s.name,
+          email: s.email,
+          phone: s.phone,
+          branch: s.branch || result.branch || "",
+          section: s.section || result.section || "",
+        });
+        setIsReturning(true);
+      } else {
+        setUsnValidation({
+          valid: true,
+          message: `${s.branch || result.branch} — Section ${s.section || result.section}`,
+          branch: s.branch || result.branch,
+          section: s.section || result.section,
+        });
+        setStudentInfo({
+          name: s.name,
+          email: s.email,
+          phone: s.phone,
+          branch: s.branch || result.branch || "",
+          section: s.section || result.section || "",
+        });
       }
     } catch {
       setUsnValidation({
