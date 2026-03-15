@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSession } from "@/lib/session";
+import { getSession, clearSession, initializeAuth } from "@/lib/session";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { SessionData } from "@/lib/types";
@@ -24,18 +24,34 @@ export default function SessionGuard({ children }: SessionGuardProps) {
         return;
       }
 
+      // Ensure Firebase Auth is active (from JWT cookie)
+      const authOk = await initializeAuth();
+      if (!authOk) {
+        // No valid JWT cookie — session is forged or expired
+        clearSession();
+        router.replace("/register");
+        return;
+      }
+
       // Quick Firestore validation
       try {
         const regDoc = await getDoc(doc(db, "registrations", s.usn));
         if (!regDoc.exists()) {
-          // Registration deleted — clear session
-          const { clearSession } = await import("@/lib/session");
           clearSession();
           router.replace("/register");
           return;
         }
-      } catch {
-        // Network error — trust local session
+      } catch (err) {
+        // If permission-denied, try re-initializing auth
+        if (err instanceof Error && err.message.includes("permission")) {
+          const retryAuth = await initializeAuth();
+          if (!retryAuth) {
+            clearSession();
+            router.replace("/register");
+            return;
+          }
+        }
+        // Other network errors — trust local session
       }
 
       setSession(s);

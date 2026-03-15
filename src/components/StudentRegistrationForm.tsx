@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { signInWithCustomToken } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, query, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
 import { setSession } from "@/lib/session";
@@ -198,7 +199,7 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: studentInfo.email }),
+        body: JSON.stringify({ email: studentInfo.email, usn: usn.toUpperCase() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send code.");
@@ -222,23 +223,26 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: studentInfo.email, otp: otpCode }),
+        body: JSON.stringify({ email: studentInfo.email, otp: otpCode, usn: usn.toUpperCase() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed.");
 
-      // OTP verified — if returning student, restore session from registration data
-      if (isReturning) {
-        const regSnap = await getDoc(doc(db, "registrations", usn.toUpperCase()));
-        const regData = regSnap.exists() ? regSnap.data() : null;
+      // Sign in with Firebase custom token (for Firestore auth)
+      if (data.customToken) {
+        await signInWithCustomToken(auth, data.customToken);
+      }
+
+      // OTP verified — if returning student, restore session from server response
+      if (isReturning && data.user) {
         setSession({
-          usn: usn.toUpperCase(),
-          name: studentInfo.name,
-          email: studentInfo.email,
-          branch: studentInfo.branch,
-          section: studentInfo.section,
-          teamId: regData?.teamId || null,
-          teamRole: regData?.teamRole || null,
+          usn: data.user.usn,
+          name: data.user.name,
+          email: data.user.email,
+          branch: data.user.branch,
+          section: data.user.section,
+          teamId: data.user.teamId || null,
+          teamRole: data.user.teamRole || null,
           registeredAt: new Date().toISOString(),
         });
         if (onRegistered) { onRegistered(); return; }
@@ -246,7 +250,7 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
         return;
       }
 
-      // New student — proceed to registration step
+      // New student — proceed to registration step (Firebase Auth is now active)
       setStep("register");
     } catch (err) {
       setOtpError(err instanceof Error ? err.message : "Invalid or expired code. Please try again.");

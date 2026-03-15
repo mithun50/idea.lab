@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getSession, clearSession } from "@/lib/session";
+import { getSession, fullLogout } from "@/lib/session";
 import { useState, useEffect } from "react";
 import { LogOut } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
@@ -19,8 +19,8 @@ export default function Navbar() {
     }
   }, []);
 
-  const handleLogout = () => {
-    clearSession();
+  const handleLogout = async () => {
+    await fullLogout();
     window.location.href = "/";
   };
 
