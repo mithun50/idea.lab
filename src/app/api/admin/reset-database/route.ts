@@ -9,52 +9,85 @@ import { getAdminFirestore, getAdminAuth } from "@/lib/firebase-admin";
  */
 export async function POST(req: NextRequest) {
   try {
-    const { idToken, clearCSV, clearOtpCodes } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    const { idToken, clearCSV, clearOtpCodes } = body;
 
     if (!idToken) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     // Verify the Firebase ID token
-    const adminAuth = getAdminAuth();
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    if (!decoded.email) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    let adminAuth;
+    try {
+      adminAuth = getAdminAuth();
+    } catch (err) {
+      console.error("Failed to initialize Firebase Admin Auth:", err);
+      return NextResponse.json({ error: "Server configuration error: Firebase Admin not initialized. Check FIREBASE_SERVICE_ACCOUNT_KEY env var." }, { status: 500 });
     }
 
-    const adminDb = getAdminFirestore();
+    let decoded;
+    try {
+      decoded = await adminAuth.verifyIdToken(idToken);
+    } catch (err) {
+      console.error("ID token verification failed:", err);
+      return NextResponse.json({ error: "Token verification failed. Try logging out and back in." }, { status: 401 });
+    }
+
+    if (!decoded.email) {
+      return NextResponse.json({ error: "Invalid token: no email claim" }, { status: 401 });
+    }
+
+    let adminDb;
+    try {
+      adminDb = getAdminFirestore();
+    } catch (err) {
+      console.error("Failed to initialize Firebase Admin Firestore:", err);
+      return NextResponse.json({ error: "Server configuration error: Firestore Admin not initialized." }, { status: 500 });
+    }
+
+    const deleted: string[] = [];
 
     // Delete registrations
     await deleteCollection(adminDb, "registrations");
+    deleted.push("registrations");
 
     // Delete teams
     await deleteCollection(adminDb, "teams");
+    deleted.push("teams");
 
     // Delete invites
     await deleteCollection(adminDb, "invites");
+    deleted.push("invites");
 
     // Delete notifications
     await deleteCollection(adminDb, "notifications");
+    deleted.push("notifications");
 
     // Clear CSV student data if selected
     if (clearCSV) {
       await deleteCollection(adminDb, "students");
+      deleted.push("students");
     }
 
     // Clear OTP codes if selected
     if (clearOtpCodes) {
       await deleteCollection(adminDb, "otp_codes");
+      deleted.push("otp_codes");
     }
 
     return NextResponse.json({
       success: true,
-      message: "Database reset complete." +
-        (clearCSV ? " CSV data cleared." : "") +
-        (clearOtpCodes ? " OTP codes cleared." : ""),
+      message: `Database reset complete. Cleared: ${deleted.join(", ")}.`,
     });
   } catch (err) {
     console.error("Reset database error:", err);
-    const msg = err instanceof Error ? err.message : "Failed to reset database.";
+    const msg = err instanceof Error ? err.message : "Unknown error during database reset.";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
@@ -66,14 +99,19 @@ async function deleteCollection(
   db: FirebaseFirestore.Firestore,
   collectionName: string
 ) {
-  const snap = await db.collection(collectionName).get();
-  if (snap.empty) return;
+  try {
+    const snap = await db.collection(collectionName).get();
+    if (snap.empty) return;
 
-  // Batch in groups of 450 (Firestore limit is 500)
-  const docs = snap.docs;
-  for (let i = 0; i < docs.length; i += 450) {
-    const batch = db.batch();
-    docs.slice(i, i + 450).forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
+    // Batch in groups of 450 (Firestore limit is 500)
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = db.batch();
+      docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.error(`Failed to delete collection "${collectionName}":`, err);
+    throw new Error(`Failed to clear ${collectionName}: ${err instanceof Error ? err.message : "unknown error"}`);
   }
 }

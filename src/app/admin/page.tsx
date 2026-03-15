@@ -888,7 +888,7 @@ export default function AdminPage() {
                                 <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
                                     Type <span style={{ color: "var(--red)", fontStyle: "italic" }}>RESET DATABASE</span>
                                 </label>
-                                <input type="text" value={resetPhrase} onChange={(e) => setResetPhrase(e.target.value)} placeholder="CONFIRMATION PHRASE" className="input-field" required />
+                                <input type="text" value={resetPhrase} onChange={(e) => setResetPhrase(e.target.value.toUpperCase())} placeholder="RESET DATABASE" className="input-field" style={{ textTransform: "uppercase" }} required />
                             </div>
 
                             {resetError && (
@@ -908,12 +908,12 @@ export default function AdminPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={resetLoading || resetPhrase !== "RESET DATABASE" || !resetPassword}
+                                    disabled={resetLoading || resetPhrase.trim() !== "RESET DATABASE" || !resetPassword}
                                     style={{
                                         flex: 1, padding: "14px", background: "var(--red)", color: "#fff",
                                         fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em",
                                         fontSize: "11px", border: "1px solid var(--ink)", cursor: "pointer",
-                                        opacity: (resetLoading || resetPhrase !== "reset database" || !resetPassword) ? 0.3 : 1,
+                                        opacity: (resetLoading || resetPhrase.trim() !== "RESET DATABASE" || !resetPassword) ? 0.3 : 1,
                                         transition: "all 0.15s", fontFamily: "var(--body)",
                                     }}
                                 >

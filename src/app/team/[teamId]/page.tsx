@@ -30,6 +30,7 @@ export default function TeamDetailPage() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [pendingInviteId, setPendingInviteId] = useState<string | null>(null);
+  const [memberDetails, setMemberDetails] = useState<Record<string, { email: string; phone: string }>>({});
 
   // Read session from localStorage on mount (avoids SSR mismatch)
   useEffect(() => {
@@ -133,6 +134,26 @@ export default function TeamDetailPage() {
         });
       });
       setInvites(inviteList);
+
+      // Fetch member details (email, phone) for lead view
+      const currentSession = getSession();
+      if (currentSession && currentSession.usn === data.leadUSN) {
+        const members = data.members || [];
+        const details: Record<string, { email: string; phone: string }> = {};
+        await Promise.all(
+          members.map(async (m: { usn: string }) => {
+            if (m.usn === currentSession.usn) return;
+            try {
+              const regDoc = await getDoc(doc(db, "registrations", m.usn));
+              if (regDoc.exists()) {
+                const rd = regDoc.data();
+                details[m.usn] = { email: rd.email || "", phone: rd.phone || "" };
+              }
+            } catch { /* skip individual member fetch errors */ }
+          })
+        );
+        setMemberDetails(details);
+      }
     } catch {
       setError("Failed to load team data.");
     } finally {
@@ -171,6 +192,46 @@ export default function TeamDetailPage() {
     checkExisting();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.usn, teamId]);
+
+  // ── Remove / kick member (lead only) ────────────────────────────────
+  const removeMember = async (memberUSN: string, wasApproved: boolean) => {
+    if (!team || !session) return;
+    const updatedMembers = team.members.filter((m) => m.usn !== memberUSN);
+    try {
+      await updateDoc(doc(db, "teams", team.teamId), {
+        members: updatedMembers,
+        memberCount: updatedMembers.length,
+        updatedAt: serverTimestamp(),
+      });
+
+      // If the member had joined (approved), clear their registration teamId/teamRole
+      if (wasApproved) {
+        await updateDoc(doc(db, "registrations", memberUSN), {
+          teamId: null,
+          teamRole: null,
+        });
+      }
+
+      // Notify the kicked/removed member
+      if (wasApproved) {
+        createNotification({
+          userId: memberUSN,
+          type: "kicked_from_team",
+          title: "Removed from Team",
+          message: `You were removed from ${team.name || team.teamId} by ${session.name}`,
+          teamId: team.teamId,
+          teamName: team.name ?? null,
+          fromUSN: session.usn,
+          fromName: session.name,
+          linkUrl: "/dashboard",
+        });
+      }
+
+      fetchTeam();
+    } catch (err) {
+      console.error("Failed to remove member:", err);
+    }
+  };
 
   const handleRequestJoin = async () => {
     if (!session || !team) return;
@@ -437,7 +498,14 @@ export default function TeamDetailPage() {
                 </button>
               )}
             </div>
-            <TeamMemberList members={team.members} leadUSN={team.leadUSN} />
+            <TeamMemberList
+              members={team.members}
+              leadUSN={team.leadUSN}
+              isLead={isLead}
+              memberDetails={isLead ? memberDetails : undefined}
+              onRemove={isLead ? removeMember : undefined}
+              teamStatus={team.status as "forming" | "full" | "locked"}
+            />
           </div>
 
           {/* Lead Controls */}
