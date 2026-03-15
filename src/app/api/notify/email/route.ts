@@ -82,7 +82,17 @@ async function sendEmailWithFallback(
 
 // ── Email templates ─────────────────────────────────────────────────────
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://idealab.dfriendsclub.in";
+function getAppUrl(req: NextRequest): string {
+  // Auto-detect from request headers — no env var needed
+  const origin = req.headers.get("origin");
+  if (origin) return origin;
+  const host = req.headers.get("host");
+  if (host) {
+    const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+    return `${proto}://${host}`;
+  }
+  return "https://idealab.dfriendsclub.in";
+}
 
 function escapeHtml(str: string): string {
   return str
@@ -92,8 +102,8 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildInviteEmail(fromName: string, teamName: string, inviteId: string): string {
-  const inviteUrl = `${APP_URL}/invite/${inviteId}`;
+function buildInviteEmail(fromName: string, teamName: string, inviteId: string, baseUrl: string): string {
+  const inviteUrl = `${baseUrl}/invite/${inviteId}`;
   const safeFrom = escapeHtml(fromName);
   const safeTeam = escapeHtml(teamName);
 
@@ -175,8 +185,8 @@ function buildInviteEmail(fromName: string, teamName: string, inviteId: string):
 </html>`;
 }
 
-function buildRequestEmail(fromName: string, teamName: string): string {
-  const dashboardUrl = `${APP_URL}/dashboard`;
+function buildRequestEmail(fromName: string, teamName: string, baseUrl: string): string {
+  const dashboardUrl = `${baseUrl}/dashboard`;
   const safeFrom = escapeHtml(fromName);
   const safeTeam = escapeHtml(teamName);
 
@@ -282,18 +292,19 @@ export async function POST(req: NextRequest) {
     }
 
     const toEmail = regDoc.data()!.email;
+    const baseUrl = getAppUrl(req);
 
     if (type === "invite") {
       await sendEmailWithFallback(
         toEmail,
         `${fromName} invited you to join ${teamName} — Idea Lab`,
-        buildInviteEmail(fromName, teamName, inviteId)
+        buildInviteEmail(fromName, teamName, inviteId, baseUrl)
       );
     } else if (type === "request") {
       await sendEmailWithFallback(
         toEmail,
         `${fromName} wants to join ${teamName} — Idea Lab`,
-        buildRequestEmail(fromName, teamName)
+        buildRequestEmail(fromName, teamName, baseUrl)
       );
     } else {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });

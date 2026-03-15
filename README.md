@@ -830,10 +830,6 @@ BREVO_SENDER_EMAIL=
 # Brevo Multi-key (optional — round-robin with auto-fallback)
 # BREVO_KEYS=apikey1:sender1@email.com,apikey2:sender2@email.com
 
-# App URL (used in email notification links)
-# Defaults to https://idealab.dfriendsclub.in if not set
-# NEXT_PUBLIC_APP_URL=https://idealab.dfriendsclub.in
-
 # Origin allowlist (comma-separated, optional)
 # ALLOWED_ORIGINS=https://idealab.dfriendsclub.in,http://localhost:3000
 ```
