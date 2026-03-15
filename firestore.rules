@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Students — read-only for authenticated users (admin SDK writes)
+    match /students/{usn} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Config — publicly readable (registration status flags, non-sensitive)
+    // Write restricted to admin SDK only
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Registrations — create only your own; update only your own
+    // OR team lead can set teamId/teamRole when approving join requests
+    match /registrations/{usn} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == usn;
+      allow update: if request.auth != null && (
+        // Self-update (team creation, accepting invite, pair confirmation)
+        request.auth.uid == usn ||
+        // Team lead assigning a member to their team (only teamId + teamRole)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamId', 'teamRole']) &&
+         request.resource.data.teamId != null &&
+         get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.leadUSN == request.auth.uid) ||
+        // Partner confirming pair status (legacy pair flow)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pairStatus'])
+      );
+    }
+
+    // Teams — any authenticated user can create.
+    // Updates: team lead, or any authenticated user (members array mutations
+    // for join requests and invite responses are too complex for rules-level
+    // validation; authorization enforced in app logic)
+    match /teams/{teamId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // Invites — only the sender (fromUSN) can create.
+    // Only participants (toUSN or fromUSN) can update (accept/reject/cancel).
+    match /invites/{inviteId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.fromUSN == request.auth.uid;
+      allow update: if request.auth != null
+        && (resource.data.toUSN == request.auth.uid
+            || resource.data.fromUSN == request.auth.uid);
+    }
+
+    // Notifications — only recipient can read/update.
+    // Any authenticated user can create (for cross-user notifications),
+    // but the fromUSN must match the creator.
+    match /notifications/{notifId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.fromUSN == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // OTP codes — server-only (admin SDK); deny all client access
+    match /otp_codes/{doc} {
+      allow read, write: if false;
+    }
+  }
+}

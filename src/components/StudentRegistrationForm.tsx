@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { signInWithCustomToken } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, query, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { validateUSN, getBranchName, getSection } from "@/lib/usnValidator";
-import { supabase } from "@/lib/supabase";
 import { setSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, PencilLine, Lock, Loader2, Mail, ShieldCheck, RotateCcw } from "lucide-react";
@@ -132,51 +132,54 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
 
     setIsLookingUp(true);
     try {
-      // Check if already registered (returning student)
-      const existingReg = await getDoc(doc(db, "registrations", upper));
-      if (existingReg.exists()) {
-        const regData = existingReg.data();
-        setUsnValidation({
-          valid: true,
-          message: `${regData.branch || result.branch} — Section ${regData.section || result.section} (already registered)`,
-          branch: regData.branch || result.branch,
-          section: regData.section || result.section,
-        });
-        setStudentInfo({
-          name: regData.name || "",
-          email: regData.email || "",
-          phone: regData.phone || "",
-          branch: regData.branch || result.branch || "",
-          section: regData.section || result.section || "",
-        });
-        setIsReturning(true);
-        return;
-      }
+      // Server-side lookup (uses admin SDK — bypasses Firestore auth rules)
+      const res = await fetch("/api/auth/lookup-usn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usn: upper }),
+      });
+      const data = await res.json();
 
-      // Must exist in students collection (CSV imported)
-      const studentDoc = await getDoc(doc(db, "students", upper));
-      if (studentDoc.exists()) {
-        const data = studentDoc.data();
-        setUsnValidation({
-          valid: true,
-          message: `${data.branch || result.branch} — Section ${data.section || result.section}`,
-          branch: data.branch || result.branch,
-          section: data.section || result.section,
-        });
-        setStudentInfo({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          branch: data.branch || result.branch || "",
-          section: data.section || result.section || "",
-        });
-      } else {
+      if (!res.ok || !data.found) {
         setCsvNotFound(true);
         setUsnValidation({
           valid: false,
-          message: "USN not found in the student database. Contact your admin to ensure the CSV has been uploaded.",
+          message: data.error || "USN not found in the student database.",
         });
         setStudentInfo(null);
+        return;
+      }
+
+      const s = data.student;
+      if (data.returning) {
+        setUsnValidation({
+          valid: true,
+          message: `${s.branch || result.branch} — Section ${s.section || result.section} (already registered)`,
+          branch: s.branch || result.branch,
+          section: s.section || result.section,
+        });
+        setStudentInfo({
+          name: s.name,
+          email: s.email,
+          phone: s.phone,
+          branch: s.branch || result.branch || "",
+          section: s.section || result.section || "",
+        });
+        setIsReturning(true);
+      } else {
+        setUsnValidation({
+          valid: true,
+          message: `${s.branch || result.branch} — Section ${s.section || result.section}`,
+          branch: s.branch || result.branch,
+          section: s.section || result.section,
+        });
+        setStudentInfo({
+          name: s.name,
+          email: s.email,
+          phone: s.phone,
+          branch: s.branch || result.branch || "",
+          section: s.section || result.section || "",
+        });
       }
     } catch {
       setUsnValidation({
@@ -189,28 +192,25 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
     }
   }, []);
 
-  // Step 2: Send OTP via Supabase
+  // Step 2: Send OTP via custom SMTP
   const handleSendOtp = async () => {
     if (!studentInfo?.email) return;
     setIsSendingOtp(true);
     setOtpError("");
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: studentInfo.email,
-        options: { shouldCreateUser: true },
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: studentInfo.email, usn: usn.toUpperCase() }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send code.");
       setOtpSent(true);
       setStep("otp");
       startCooldown();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
-        setOtpError("Too many attempts. Please try again after 5 minutes.");
-      } else {
-        setOtpError(msg || "Failed to send verification code.");
-      }
+      setOtpError(err instanceof Error ? err.message : "Failed to send verification code.");
     } finally {
       setIsSendingOtp(false);
     }
@@ -223,25 +223,29 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
     setOtpError("");
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: studentInfo.email,
-        token: otpCode,
-        type: "email",
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: studentInfo.email, otp: otpCode, usn: usn.toUpperCase() }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed.");
 
-      // OTP verified — if returning student, restore session from registration data
-      if (isReturning) {
-        const regSnap = await getDoc(doc(db, "registrations", usn.toUpperCase()));
-        const regData = regSnap.exists() ? regSnap.data() : null;
+      // Sign in with Firebase custom token (for Firestore auth)
+      if (data.customToken) {
+        await signInWithCustomToken(auth, data.customToken);
+      }
+
+      // OTP verified — if returning student, restore session from server response
+      if (isReturning && data.user) {
         setSession({
-          usn: usn.toUpperCase(),
-          name: studentInfo.name,
-          email: studentInfo.email,
-          branch: studentInfo.branch,
-          section: studentInfo.section,
-          teamId: regData?.teamId || null,
-          teamRole: regData?.teamRole || null,
+          usn: data.user.usn,
+          name: data.user.name,
+          email: data.user.email,
+          branch: data.user.branch,
+          section: data.user.section,
+          teamId: data.user.teamId || null,
+          teamRole: data.user.teamRole || null,
           registeredAt: new Date().toISOString(),
         });
         if (onRegistered) { onRegistered(); return; }
@@ -249,15 +253,10 @@ export default function StudentRegistrationForm({ redirectTo, onRegistered }: { 
         return;
       }
 
-      // New student — proceed to registration step
+      // New student — proceed to registration step (Firebase Auth is now active)
       setStep("register");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit") || msg.toLowerCase().includes("too many")) {
-        setOtpError("Too many attempts. Please try again after 5 minutes.");
-      } else {
-        setOtpError(msg || "Invalid or expired code. Please try again.");
-      }
+      setOtpError(err instanceof Error ? err.message : "Invalid or expired code. Please try again.");
     } finally {
       setIsVerifyingOtp(false);
     }
