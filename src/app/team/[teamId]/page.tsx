@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { Team, Invite, SessionData } from "@/lib/types";
-import { getSession, clearSession, initializeAuth } from "@/lib/session";
+import { getSession, updateSessionTeam, initializeAuth } from "@/lib/session";
 import { auth } from "@/lib/firebase";
 import { generateInviteId } from "@/lib/idGenerator";
 import { createNotification } from "@/lib/notifications";
@@ -18,7 +18,7 @@ import InviteManager from "@/components/InviteManager";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import StudentRegistrationForm from "@/components/StudentRegistrationForm";
 import Link from "next/link";
-import { ArrowLeft, Share2, Mail, LogOut, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Share2, Mail, LogOut, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -241,6 +241,21 @@ export default function TeamDetailPage() {
     setTimeout(() => setToast(null), 2500);
   };
 
+  // ── Toggle Visibility ──
+  const toggleVisibility = async () => {
+    if (!team) return;
+    try {
+      await updateDoc(doc(db, "teams", team.teamId), {
+        isPublic: !team.isPublic,
+        updatedAt: serverTimestamp(),
+      });
+      setTeam(prev => ({ ...prev!, isPublic: !prev!.isPublic }));
+      showToast(team.isPublic ? "Team is now private" : "Team is now public");
+    } catch {
+      showToast("Failed to update visibility", "err");
+    }
+  };
+
   // ── Leave Team ──
   const leaveTeam = async () => {
     if (!team || !session) return;
@@ -328,7 +343,7 @@ export default function TeamDetailPage() {
         teamRole: null,
       });
 
-      clearSession();
+      updateSessionTeam(null, null);
       router.push("/dashboard");
     } catch (err) {
       console.error("Failed to leave team:", err);
@@ -385,7 +400,7 @@ export default function TeamDetailPage() {
         });
       }
 
-      clearSession();
+      updateSessionTeam(null, null);
       router.push("/dashboard");
     } catch (err) {
       console.error("Failed to dissolve team:", err);
@@ -452,6 +467,19 @@ export default function TeamDetailPage() {
         fromName: session.name,
         linkUrl: "/dashboard",
       });
+
+      // Send email notification to lead (fire-and-forget)
+      fetch("/api/notify/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "request",
+          toUSN: team.leadUSN,
+          fromName: session.name,
+          teamName: team.name || team.teamId,
+          teamId: team.teamId,
+        }),
+      }).catch(() => {});
 
       setJoinMessage({ type: "success", text: "Request sent! The team lead will review it." });
       setHasExistingRequest(true);
@@ -684,6 +712,43 @@ export default function TeamDetailPage() {
           {/* Lead Controls */}
           {isLead && team.status === "forming" && (
             <>
+              {/* Team Visibility */}
+              <div>
+                <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
+                  Team Visibility
+                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => !team.isPublic && toggleVisibility()}
+                    style={{
+                      flex: 1, padding: "12px", border: "1.5px solid", cursor: "pointer",
+                      borderColor: team.isPublic ? "var(--ink)" : "var(--line)",
+                      background: team.isPublic ? "var(--ink)" : "transparent",
+                      color: team.isPublic ? "var(--paper)" : "var(--muted)",
+                      fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                    }}
+                  >
+                    <Eye style={{ width: 14, height: 14 }} /> Public — Anyone can request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => team.isPublic && toggleVisibility()}
+                    style={{
+                      flex: 1, padding: "12px", border: "1.5px solid", cursor: "pointer",
+                      borderColor: !team.isPublic ? "var(--ink)" : "var(--line)",
+                      background: !team.isPublic ? "var(--ink)" : "transparent",
+                      color: !team.isPublic ? "var(--paper)" : "var(--muted)",
+                      fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                    }}
+                  >
+                    <EyeOff style={{ width: 14, height: 14 }} /> Private — Invite only
+                  </button>
+                </div>
+              </div>
+
               {/* Invite Members */}
               <div>
                 <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "12px" }}>

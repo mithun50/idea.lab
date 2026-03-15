@@ -156,6 +156,20 @@ export default function InviteManager({ team, pendingInvites, onRefresh }: Invit
         linkUrl: `/invite/${inviteId}`,
       });
 
+      // Send email notification (fire-and-forget)
+      fetch("/api/notify/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "invite",
+          toUSN: upperUSN,
+          fromName: session?.name || team.leadUSN,
+          teamName: team.name || team.teamId,
+          teamId: team.teamId,
+          inviteId,
+        }),
+      }).catch(() => {});
+
       setSuccess(`Invite sent to ${toName}`);
       setLastInviteId(inviteId);
       setInviteUSN("");

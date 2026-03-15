@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Team, Invite, SessionData, Registration } from "@/lib/types";
-import { getSession, updateSessionTeam, clearSession, initializeAuth } from "@/lib/session";
+import { getSession, updateSessionTeam, initializeAuth } from "@/lib/session";
 import { auth } from "@/lib/firebase";
 import { generateInviteId } from "@/lib/idGenerator";
 import { canAddMember } from "@/lib/teamConstraints";
@@ -18,7 +18,7 @@ import TeamStatusBadge from "@/components/TeamStatusBadge";
 import BranchConstraintIndicator from "@/components/BranchConstraintIndicator";
 import JoinRequestManager from "@/components/JoinRequestManager";
 import Link from "next/link";
-import { Users, Plus, Search, Mail, ArrowRight, Lightbulb, XCircle, LogOut, AlertTriangle } from "lucide-react";
+import { Users, Plus, Search, Mail, ArrowRight, Lightbulb, XCircle, LogOut, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const MAX_DIRECT_INVITES = 3;
@@ -484,7 +484,7 @@ function DashboardContent({ session }: { session: SessionData }) {
         teamRole: null,
       });
 
-      clearSession();
+      updateSessionTeam(null, null);
       window.location.reload();
     } catch (err) {
       console.error("Failed to leave team:", err);
@@ -542,11 +542,26 @@ function DashboardContent({ session }: { session: SessionData }) {
         });
       }
 
-      clearSession();
+      updateSessionTeam(null, null);
       window.location.reload();
     } catch (err) {
       console.error("Failed to dissolve team:", err);
       showToast(err instanceof Error ? err.message : "Failed to dissolve team.", "err");
+    }
+  };
+
+  // ── Toggle Visibility ──
+  const toggleVisibility = async () => {
+    if (!team) return;
+    try {
+      await updateDoc(doc(db, "teams", team.teamId), {
+        isPublic: !team.isPublic,
+        updatedAt: serverTimestamp(),
+      });
+      setTeam(prev => prev ? { ...prev, isPublic: !prev.isPublic } : null);
+      showToast(team.isPublic ? "Team is now private" : "Team is now public");
+    } catch {
+      showToast("Failed to update visibility", "err");
     }
   };
 
@@ -940,6 +955,45 @@ function DashboardContent({ session }: { session: SessionData }) {
               View Full Team Page <ArrowRight style={{ width: 14, height: 14 }} />
             </Link>
           </div>
+
+          {/* Team Visibility — only when forming */}
+          {team.status === "forming" && (
+            <div className="glass-card" style={{ padding: "20px" }}>
+              <label style={{ display: "block", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", marginBottom: "8px" }}>
+                Team Visibility
+              </label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => !team.isPublic && toggleVisibility()}
+                  style={{
+                    flex: 1, padding: "12px", border: "1.5px solid", cursor: "pointer",
+                    borderColor: team.isPublic ? "var(--ink)" : "var(--line)",
+                    background: team.isPublic ? "var(--ink)" : "transparent",
+                    color: team.isPublic ? "var(--paper)" : "var(--muted)",
+                    fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                  }}
+                >
+                  <Eye style={{ width: 14, height: 14 }} /> Public
+                </button>
+                <button
+                  type="button"
+                  onClick={() => team.isPublic && toggleVisibility()}
+                  style={{
+                    flex: 1, padding: "12px", border: "1.5px solid", cursor: "pointer",
+                    borderColor: !team.isPublic ? "var(--ink)" : "var(--line)",
+                    background: !team.isPublic ? "var(--ink)" : "transparent",
+                    color: !team.isPublic ? "var(--paper)" : "var(--muted)",
+                    fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                  }}
+                >
+                  <EyeOff style={{ width: 14, height: 14 }} /> Private
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Danger Zone — only when forming */}
           {team.status === "forming" && (
