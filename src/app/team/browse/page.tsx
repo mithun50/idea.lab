@@ -167,6 +167,19 @@ export default function BrowseTeamsPage() {
         linkUrl: "/dashboard",
       });
 
+      // Send email notification to lead (fire-and-forget)
+      fetch("/api/notify/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "request",
+          toUSN: team.leadUSN,
+          fromName: session.name,
+          teamName: team.name || team.teamId,
+          teamId: team.teamId,
+        }),
+      }).catch(() => {});
+
       setMessage({ type: "success", text: "Request sent! The team lead will review it." });
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to send request." });

@@ -457,36 +457,42 @@ Example: `1DB25CS075` → Branch: **CSE**, Section: **B**
 ### Invite Flow
 
 ```
-[Team Lead]      [Firestore]      [Invitee]
-    |                |                |
-    |-- Invite USN ->|                |
-    |                |-- Write        |
-    |                |   invites/     |
-    |                |   {INV-XXXX}   |
-    |                |                |
-    |                |<-- Open link --|
-    |                |                |
-    |                |-- Accept ----->|
-    |                |   Update invite|
-    |                |   Update team  |
-    |                |   Update reg   |
+[Team Lead]      [Firestore]      [Brevo API]      [Invitee]
+    |                |                |                |
+    |-- Invite USN ->|                |                |
+    |                |-- Write        |                |
+    |                |   invites/     |                |
+    |                |   {INV-XXXX}   |                |
+    |                |                |                |
+    |-- POST /api/notify/email ------>|                |
+    |   (fire-and-forget)             |-- Email ------>|
+    |                |                |  invite link   |
+    |                |                |                |
+    |                |<------------- Open link --------|
+    |                |                                 |
+    |                |-- Accept ---------------------->|
+    |                |   Update invite, team, reg      |
 ```
 
 ### Join Request Flow
 
 ```
-[Student]        [Firestore]      [Team Lead]
-    |                |                |
-    |-- Request ---->|                |
-    |   Join         |-- Write        |
-    |                |   invites/     |
-    |                |   (type:       |
-    |                |    request)    |
-    |                |                |
-    |                |<-- Approve? ---|
-    |                |                |
-    |<-- Added ------|   Update all   |
-    |   to team      |   documents    |
+[Student]        [Firestore]      [Brevo API]      [Team Lead]
+    |                |                |                |
+    |-- Request ---->|                |                |
+    |   Join         |-- Write        |                |
+    |                |   invites/     |                |
+    |                |   (type:       |                |
+    |                |    request)    |                |
+    |                |                |                |
+    |-- POST /api/notify/email ------>|                |
+    |   (fire-and-forget)             |-- Email ------>|
+    |                |                |  review req    |
+    |                |                |                |
+    |                |<------------- Approve? ---------|
+    |                |                                 |
+    |<-- Added ------|   Update all documents          |
+    |   to team      |                                 |
 ```
 
 ### Admin CSV Upload Flow
@@ -627,7 +633,8 @@ Document ID: auto-generated (timestamp + random)
   userId: "1DB25EC042",           // recipient USN
   type: "invite_received" | "request_received" | "invite_accepted" |
         "invite_rejected" | "request_approved" | "request_rejected" |
-        "kicked_from_team",
+        "kicked_from_team" | "lead_transferred" | "member_left_team" |
+        "team_dissolved",
   title: "Team Invite",
   message: "Rahul invited you to join Innovators",
   teamId: "TEAM-A1B2",
@@ -677,7 +684,7 @@ Document ID: email with @ and . replaced by _
 | Server SDK | Firebase Admin SDK (Firestore admin access, custom token creation) |
 | JWT | jose (HS256, Edge-compatible) |
 | Rate Limiting | In-memory IP-based rate limiter |
-| Notifications | Real-time Firestore onSnapshot + Browser Notification API |
+| Notifications | Real-time Firestore onSnapshot + Browser Notification API + Brevo email |
 | Styling | Custom CSS (Paper & Ink design system) |
 | Icons | Lucide React |
 | Export | xlsx library for .xlsx downloads |
@@ -714,12 +721,14 @@ src/
 │   ├── join/page.tsx          # Legacy join redirect
 │   ├── admin/page.tsx         # Admin panel (sidebar + tabs)
 │   ├── api/
-│   │   └── auth/
-│   │       ├── send-otp/route.ts       # IP rate-limited OTP generation via admin SDK
-│   │       ├── verify-otp/route.ts     # OTP verification → JWT cookie + Firebase custom token
-│   │       ├── lookup-usn/route.ts     # Server-side USN lookup (admin SDK, pre-auth)
-│   │       ├── firebase-token/route.ts # Refresh Firebase custom token from JWT cookie
-│   │       └── logout/route.ts         # Clear JWT session cookie
+│   │   ├── auth/
+│   │   │   ├── send-otp/route.ts       # IP rate-limited OTP generation via admin SDK
+│   │   │   ├── verify-otp/route.ts     # OTP verification → JWT cookie + Firebase custom token
+│   │   │   ├── lookup-usn/route.ts     # Server-side USN lookup (admin SDK, pre-auth)
+│   │   │   ├── firebase-token/route.ts # Refresh Firebase custom token from JWT cookie
+│   │   │   └── logout/route.ts         # Clear JWT session cookie
+│   │   └── notify/
+│   │       └── email/route.ts          # Email notifications for invites & join requests (Brevo)
 │   ├── team/
 │   │   ├── create/page.tsx    # Create new team (gate-checked)
 │   │   ├── browse/page.tsx    # Browse open teams (gate-checked)
@@ -821,6 +830,10 @@ BREVO_SENDER_EMAIL=
 # Brevo Multi-key (optional — round-robin with auto-fallback)
 # BREVO_KEYS=apikey1:sender1@email.com,apikey2:sender2@email.com
 
+# App URL (used in email notification links)
+# Defaults to https://idealab.dfriendsclub.in if not set
+# NEXT_PUBLIC_APP_URL=https://idealab.dfriendsclub.in
+
 # Origin allowlist (comma-separated, optional)
 # ALLOWED_ORIGINS=https://idealab.dfriendsclub.in,http://localhost:3000
 ```
@@ -841,6 +854,8 @@ BREVO_SENDER_EMAIL=
 5. For higher volume, create multiple Brevo accounts and use `BREVO_KEYS` for round-robin
 
 > **Fallback mechanism**: If `BREVO_KEYS` is set, the system distributes emails across keys in round-robin fashion. If one key fails (rate limit, error), it automatically tries the next key.
+
+> **Email notifications**: The same Brevo keys are used for team invite and join request email notifications (`POST /api/notify/email`). This uses a separate round-robin counter from OTP emails. Notifications are fire-and-forget — if email sending fails, in-app notifications still work.
 
 ---
 
